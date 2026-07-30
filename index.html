@@ -796,7 +796,7 @@
     </select>
     <div id="userPasswordSection">
       <label id="userPasswordLabel">Mot de passe</label>
-      <input type="password" id="userPassword" placeholder="Choisir un mot de passe">
+      <input type="password" id="userPassword" placeholder="Choisir un mot de passe (6 caractères min.)">
     </div>
     <div class="hint" id="userPasswordHint" style="display:none; margin-top:6px; text-align:left;">
       Le matricule et le mot de passe ne peuvent plus être modifiés ici une fois le compte créé
@@ -2753,7 +2753,7 @@ async function saveUser(){
       }
     }else{
       if(!password){ errEl.textContent = 'Le mot de passe est requis pour un nouvel utilisateur.'; return; }
-      if(password.length < 4){ errEl.textContent = 'Le mot de passe doit faire au moins 4 caractères.'; return; }
+      if(password.length < 6){ errEl.textContent = 'Le mot de passe doit faire au moins 6 caractères (obligatoire pour Firebase).'; return; }
 
       // Matricule unique (vérification côté Firestore, en plus de l'unicité déjà garantie par Firebase Auth sur l'email)
       const conflict = users.find(u => u.matricule === matricule);
@@ -2782,6 +2782,8 @@ async function saveUser(){
     console.error(e);
     if(e.code === 'auth/email-already-in-use'){
       errEl.textContent = 'Ce matricule est déjà utilisé par un autre utilisateur.';
+    }else if(e.code === 'auth/weak-password'){
+      errEl.textContent = 'Le mot de passe doit faire au moins 6 caractères (obligatoire pour Firebase).';
     }else{
       errEl.textContent = "Erreur lors de l'enregistrement.";
     }
