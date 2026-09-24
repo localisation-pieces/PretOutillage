@@ -445,6 +445,12 @@
               <span id="pretOutilPreviewText" style="font-size:13px; color:var(--text-dim);"></span>
             </div>
 
+            <div id="pretQuantiteZone" style="display:none; margin-top:12px;">
+              <label>Nombre d'outils empruntés</label>
+              <input type="number" id="pretQuantite" min="1" step="1" value="1" style="max-width:120px;" oninput="clampPretQuantite()">
+              <span id="pretQuantiteHint" style="font-size:12px; color:var(--text-dim); margin-left:8px;"></span>
+            </div>
+
             <label>Agent emprunteur</label>
             <input type="text" id="pretMecanicienSearch" placeholder="🔍 Rechercher par nom ou matricule..." oninput="filterPretMecanicienOptions()" style="margin-bottom:8px;">
             <select id="pretMecanicien"><option value="">— Choisir d'abord un garage —</option></select>
@@ -1914,10 +1920,13 @@ function updatePretOutilPreview(){
   const img = document.getElementById('pretOutilPreviewImg');
   const placeholder = document.getElementById('pretOutilPreviewPlaceholder');
   const text = document.getElementById('pretOutilPreviewText');
+  const qtyZone = document.getElementById('pretQuantiteZone');
+  const qtyInput = document.getElementById('pretQuantite');
+  const qtyHint = document.getElementById('pretQuantiteHint');
 
-  if(!outilId){ zone.style.display = 'none'; return; }
+  if(!outilId){ zone.style.display = 'none'; qtyZone.style.display = 'none'; return; }
   const outil = outils.find(o => o.id === outilId);
-  if(!outil){ zone.style.display = 'none'; return; }
+  if(!outil){ zone.style.display = 'none'; qtyZone.style.display = 'none'; return; }
 
   zone.style.display = 'flex';
   if(outil.photoUrl){
@@ -1929,6 +1938,33 @@ function updatePretOutilPreview(){
     placeholder.style.display = 'flex';
   }
   text.textContent = outil.nom + (outil.reference ? ` — ${outil.reference}` : '');
+
+  // Champ quantité : n'a d'intérêt que si plusieurs exemplaires de cet outil
+  // sont disponibles en même temps (ex: 2 clés à fourches identiques). Pour
+  // un outil unique, le champ reste caché — le prêt classique à 1 exemplaire.
+  const dispo = getOutilDisponibilite(outil).dispo;
+  if(dispo > 1){
+    qtyZone.style.display = 'block';
+    qtyInput.max = dispo;
+    if(!qtyInput.value || parseInt(qtyInput.value) > dispo) qtyInput.value = 1;
+    qtyHint.textContent = `sur ${dispo} disponible(s)`;
+  }else{
+    qtyZone.style.display = 'none';
+    qtyInput.value = 1;
+  }
+}
+
+// Empêche de saisir une quantité invalide (0, négative, ou au-delà du stock
+// disponible affiché au moment de la sélection) directement dans le champ.
+function clampPretQuantite(){
+  const outilId = document.getElementById('pretOutil').value;
+  const outil = outils.find(o => o.id === outilId);
+  const qtyInput = document.getElementById('pretQuantite');
+  let val = parseInt(qtyInput.value) || 1;
+  const maxDispo = outil ? getOutilDisponibilite(outil).dispo : 1;
+  if(val < 1) val = 1;
+  if(val > maxDispo) val = maxDispo;
+  qtyInput.value = val;
 }
 
 function filterPretOutilOptions(){
@@ -1979,6 +2015,13 @@ async function submitPret(){
   if(!outilId){ errEl.textContent = 'Choisis un outil disponible.'; return; }
   if(!mecanicienId){ errEl.textContent = 'Choisis un agent.'; return; }
 
+  // Nombre d'exemplaires du même outil à emprunter en une fois (ex: 2 clés à
+  // fourches identiques) — le champ n'est affiché que si plusieurs exemplaires
+  // sont disponibles ; sinon on reste sur le comportement classique (1 prêt).
+  const qtyZoneVisible = document.getElementById('pretQuantiteZone').style.display !== 'none';
+  let quantite = qtyZoneVisible ? (parseInt(document.getElementById('pretQuantite').value) || 1) : 1;
+  if(quantite < 1) quantite = 1;
+
   btn.disabled = true;
   btn.textContent = 'Enregistrement...';
 
@@ -1994,32 +2037,50 @@ async function submitPret(){
 
     // Vérification de sécurité au moment de l'envoi (au cas où la disponibilité aurait changé
     // entre-temps, ex. un autre magasinier vient d'emprunter le dernier exemplaire).
-    if(!outilDoc || getOutilDisponibilite(outilDoc).dispo <= 0){
+    const dispoActuelle = outilDoc ? getOutilDisponibilite(outilDoc).dispo : 0;
+    if(!outilDoc || dispoActuelle <= 0){
       errEl.textContent = "Cet outil n'est plus disponible — actualise la liste.";
       btn.disabled = false;
       btn.textContent = 'Enregistrer le prêt';
       return;
     }
+    if(quantite > dispoActuelle){
+      errEl.textContent = `Seulement ${dispoActuelle} exemplaire(s) disponible(s) — actualise la liste.`;
+      btn.disabled = false;
+      btn.textContent = 'Enregistrer le prêt';
+      return;
+    }
 
-    await db.collection('prets').add({
-      outilId, mecanicienId, garageId,
-      outilNom: outilDoc ? outilDoc.nom : '',
-      mecanicienNom: mecDoc ? mecNomComplet(mecDoc) : '',
-      mecanicienMatricule: mecDoc ? mecDoc.matricule : '',
-      garageNom: garageDoc ? garageDoc.nom : '',
-      magasinierId: currentUser.id,
-      magasinierNom: currentUser.nom,
-      shiftId: shift.id,
-      shiftLabel: shift.label,
-      dateDebut: firebase.firestore.Timestamp.fromDate(now),
-      dateRetourPrevue: firebase.firestore.Timestamp.fromDate(dateRetourPrevue),
-      dateRetourReelle: null,
-      statut: 'emprunte',
-      createdAt: firebase.firestore.FieldValue.serverTimestamp()
-    });
-    showToast('Prêt enregistré', 'success');
+    // Un prêt = un exemplaire (comme partout ailleurs dans l'appli, notamment
+    // pour le calcul de disponibilité et le retour individuel de chaque
+    // outil) — emprunter plusieurs exemplaires du même modèle crée donc
+    // plusieurs documents identiques d'un coup plutôt qu'un seul avec un
+    // champ "quantité", pour ne rien casser du reste du système.
+    const batch = db.batch();
+    for(let i = 0; i < quantite; i++){
+      const ref = db.collection('prets').doc();
+      batch.set(ref, {
+        outilId, mecanicienId, garageId,
+        outilNom: outilDoc ? outilDoc.nom : '',
+        mecanicienNom: mecDoc ? mecNomComplet(mecDoc) : '',
+        mecanicienMatricule: mecDoc ? mecDoc.matricule : '',
+        garageNom: garageDoc ? garageDoc.nom : '',
+        magasinierId: currentUser.id,
+        magasinierNom: currentUser.nom,
+        shiftId: shift.id,
+        shiftLabel: shift.label,
+        dateDebut: firebase.firestore.Timestamp.fromDate(now),
+        dateRetourPrevue: firebase.firestore.Timestamp.fromDate(dateRetourPrevue),
+        dateRetourReelle: null,
+        statut: 'emprunte',
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    }
+    await batch.commit();
+    showToast(quantite > 1 ? `${quantite} prêts enregistrés` : 'Prêt enregistré', 'success');
 
     document.getElementById('pretGarage').value = '';
+    document.getElementById('pretQuantite').value = 1;
     onPretGarageChange();
     await Promise.all([loadOutils(), loadPrets()]);
   }catch(e){
