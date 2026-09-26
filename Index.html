@@ -1,0 +1,3131 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Prêt Outillage</title>
+<meta name="theme-color" content="#05070c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Prêt Outillage">
+<meta name="mobile-web-app-capable" content="yes">
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"></script>
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<style>
+  :root{
+    --bg:#05070c; --panel:#12161f; --panel-light:#1b2130; --border:#2a3142;
+    --text:#f1f5f9; --text-dim:#8b96a8; --accent:#2f6fed; --accent-dark:#1d4ed8;
+    --green:#16d97a; --orange:#f59e0b; --red:#ef4444;
+  }
+  *{box-sizing:border-box; margin:0; padding:0;}
+  html, body{height:100%; overflow:hidden;}
+  body{
+    font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;
+    background:
+      radial-gradient(circle at 15% 0%, rgba(47,111,237,.08), transparent 40%),
+      var(--bg);
+    color:var(--text);
+  }
+  #app{display:none; height:100vh;}
+  #loginScreen{
+    min-height:100vh; display:flex; align-items:center; justify-content:center; padding:20px;
+  }
+  .login-box{
+    background:var(--panel); border:1px solid var(--border); border-radius:16px;
+    padding:32px; width:100%; max-width:380px;
+  }
+  .login-box h1{font-size:20px; margin-bottom:4px; text-align:center; text-transform:uppercase; letter-spacing:.04em;}
+  .login-box .subtitle{color:var(--text-dim); text-align:center; margin-bottom:24px; font-size:13px; text-transform:uppercase; letter-spacing:.03em;}
+  label{display:block; font-size:12px; color:var(--text-dim); margin-bottom:5px; margin-top:11px; text-transform:uppercase; letter-spacing:.03em;}
+  input, select, textarea{
+    width:100%; padding:9px 12px; background:var(--panel-light); border:1.5px solid var(--border);
+    border-radius:6px; color:var(--text); font-size:15px; transition:border-color .12s;
+  }
+  input:focus, select:focus, textarea:focus{outline:none; border-color:var(--accent); box-shadow:0 0 0 3px rgba(47,111,237,.18);}
+  button{
+    cursor:pointer; border:none; border-radius:6px; font-size:15px; font-weight:700;
+    padding:11px 16px; transition:transform .1s ease, box-shadow .1s ease, background .12s;
+  }
+  .btn-primary{background:var(--accent); color:white; width:100%; margin-top:20px; text-transform:uppercase; letter-spacing:.04em; font-size:13px; box-shadow:0 2px 0 var(--accent-dark);}
+  .btn-primary:hover{background:var(--accent-dark); transform:translateY(1px); box-shadow:0 1px 0 var(--accent-dark);}
+  .btn-secondary{background:var(--panel-light); color:var(--text); border:1.5px solid var(--border); text-transform:uppercase; letter-spacing:.04em; font-size:13px;}
+  .btn-secondary:hover{background:var(--border); border-color:var(--accent);}
+  .btn-danger{background:var(--red); color:white; text-transform:uppercase; letter-spacing:.04em; font-size:13px; box-shadow:0 2px 0 #b91c1c;}
+  .btn-danger:hover{transform:translateY(1px); box-shadow:0 1px 0 #b91c1c;}
+  .error-msg{color:var(--red); font-size:13px; margin-top:10px; text-align:center; min-height:16px;}
+  .hint{font-size:12px; color:var(--text-dim); margin-top:16px; text-align:center; line-height:1.5;}
+
+  /* Layout */
+  .layout{display:flex; height:100vh;}
+  #sidebar{
+    width:220px; background:#090c13; border-right:1px solid var(--border);
+    padding:20px 12px; flex-shrink:0; transition:width .18s ease; position:relative;
+    overflow-x:hidden; overflow-y:auto;
+  }
+  #sidebar.collapsed{width:60px; padding:20px 8px; overflow:visible;}
+  #sidebarToggle{
+    position:absolute; top:16px; right:10px; cursor:pointer; color:var(--text-dim);
+    font-size:16px; padding:4px 6px; border-radius:6px; z-index:2;
+  }
+  #sidebarToggle:hover{background:var(--panel-light); color:var(--text);}
+  #sidebar.collapsed #sidebarToggle{position:static; margin:0 auto 16px; display:block; width:fit-content;}
+  #sidebar h2{font-size:15px; padding:36px 8px 16px; color:var(--text); text-transform:uppercase; letter-spacing:.04em; white-space:nowrap;}
+  #sidebar.collapsed h2{padding:0 0 16px; text-align:center; font-size:20px;}
+  #sidebar h2 span.brand-accent{color:var(--accent);}
+  .nav-item{
+    display:flex; align-items:center; gap:10px; padding:10px 12px; border-radius:6px;
+    color:var(--text-dim); cursor:pointer; font-size:12px; margin-bottom:3px;
+    text-transform:uppercase; letter-spacing:.05em; white-space:nowrap; font-weight:600;
+    border-left:3px solid transparent;
+  }
+  #sidebar.collapsed .nav-item{justify-content:center; padding:10px 6px;}
+  #sidebar.collapsed .nav-label, #sidebar.collapsed .nav-badge{display:none;}
+  #sidebar.collapsed .nav-item{position:relative;}
+  #sidebar.collapsed .nav-item:hover::after{
+    content:attr(data-tooltip); position:absolute; left:100%; top:50%; transform:translateY(-50%);
+    margin-left:12px; background:var(--panel-light); color:var(--text); padding:7px 12px;
+    border-radius:6px; font-size:12px; font-weight:600; white-space:nowrap;
+    box-shadow:0 6px 18px rgba(0,0,0,.45); border:1px solid var(--border); z-index:60;
+    text-transform:none; letter-spacing:normal;
+  }
+  .nav-item:hover{background:var(--panel-light); color:var(--text);}
+  .nav-item.active{background:rgba(47,111,237,.16); color:#fff; border-left-color:var(--accent);}
+  .nav-badge{
+    background:var(--red); color:white; font-size:11px; font-weight:700;
+    padding:1px 7px; border-radius:10px; margin-left:auto;
+  }
+  .nav-divider{height:1px; background:var(--border); margin:12px 8px;}
+  #mainContent{flex:1; display:flex; flex-direction:column; min-width:0; overflow:hidden;}
+  #mainScroll{flex:1; overflow-y:auto; padding:24px 32px 32px;}
+  .topbar{
+    display:flex; justify-content:space-between; align-items:center; flex-shrink:0;
+    background:var(--bg); padding:24px 32px 16px; border-bottom:1px solid var(--border);
+  }
+  .topbar h1{font-size:19px; text-transform:uppercase; letter-spacing:.06em; font-weight:800;}
+  .user-pill{
+    display:flex; align-items:center; gap:10px; background:var(--panel); padding:8px 14px;
+    border-radius:8px; border:1px solid var(--border); font-size:13px;
+  }
+  .user-pill .badge{
+    background:var(--accent); color:white; font-size:11px; padding:2px 8px; border-radius:10px;
+  }
+  .user-pill .badge.admin{background:var(--orange);}
+  .logout-link{color:var(--text-dim); cursor:pointer; font-size:13px; margin-left:8px;}
+  .logout-link:hover{color:var(--red);}
+
+  .card{background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:20px; margin-bottom:16px; box-shadow:0 4px 14px rgba(0,0,0,.25);}
+  .card h3{
+    font-size:13px; margin-bottom:14px; text-transform:uppercase; letter-spacing:.06em;
+    padding-left:10px; border-left:3px solid var(--accent); color:var(--text);
+  }
+  table{width:100%; border-collapse:collapse;}
+  thead th{
+    position:sticky; top:0; background:var(--panel); text-align:left; font-size:11.5px; color:var(--text-dim);
+    padding:12px 10px; border-bottom:2px solid var(--accent); text-transform:uppercase; letter-spacing:.04em; z-index:1;
+  }
+  td{padding:12px 10px; border-bottom:1px solid var(--border); font-size:14px;}
+  tr:last-child td{border-bottom:none;}
+  tbody tr{transition:background .12s, transform .12s; border-left:3px solid transparent;}
+  tbody tr:nth-child(odd){background:rgba(255,255,255,.03);}
+  tbody tr:nth-child(even){background:rgba(255,255,255,.005);}
+  tbody tr:hover{background:rgba(47,111,237,.16); border-left-color:var(--accent);}
+  tbody tr.row-clickable{cursor:pointer;}
+  tbody tr.row-clickable:hover{background:rgba(47,111,237,.22);}
+  td.row-clickable{cursor:pointer; text-decoration:underline; text-decoration-color:transparent; transition:text-decoration-color .12s;}
+  td.row-clickable:hover{text-decoration-color:var(--accent); color:var(--accent);}
+  .stat-card.row-clickable{cursor:pointer; transition:transform .12s, border-color .12s;}
+  .stat-card.row-clickable:hover{transform:translateY(-2px); border-color:var(--accent);}
+  .garage-pill.row-clickable{cursor:pointer;}
+  .garage-pill.row-clickable:hover{border-color:var(--accent); background:rgba(47,111,237,.1);}
+  tbody tr td:first-child{font-weight:600;}
+  /* Accent de ligne selon le statut du prêt (historique / prêts en cours) */
+  tbody tr.row-retourne{border-left-color:rgba(22,217,122,.5);}
+  tbody tr.row-emprunte{border-left-color:rgba(47,111,237,.5);}
+  tbody tr.row-bientot_retard{border-left-color:rgba(245,158,11,.6);}
+  tbody tr.row-en_retard{border-left-color:rgba(239,68,68,.7); background:rgba(239,68,68,.05);}
+  tbody tr.row-en_retard:hover{background:rgba(239,68,68,.13);}
+  .row-actions{display:flex; gap:8px;}
+  .row-actions button{padding:6px 10px; font-size:13px;}
+  .empty-state{color:var(--text-dim); text-align:center; padding:30px 0; font-size:14px;}
+
+  .modal-overlay{
+    display:none; position:fixed; inset:0; background:rgba(0,0,0,.72); z-index:100;
+    align-items:flex-start; justify-content:center; padding:20px; overflow-y:auto;
+  }
+  .modal-overlay.open{display:flex;}
+  .modal{
+    background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:24px;
+    width:100%; max-width:420px; max-height:calc(100vh - 40px); overflow-y:auto;
+    box-shadow:0 12px 40px rgba(0,0,0,.5); margin:auto 0;
+    scrollbar-width:thin; scrollbar-color:var(--accent) var(--panel-light);
+  }
+  .modal::-webkit-scrollbar{width:8px;}
+  .modal::-webkit-scrollbar-track{background:var(--panel-light); border-radius:8px;}
+  .modal::-webkit-scrollbar-thumb{background:var(--accent); border-radius:8px;}
+  .modal h3{margin-bottom:16px; font-size:15px; text-transform:uppercase; letter-spacing:.06em; padding-left:10px; border-left:3px solid var(--accent);}
+  .modal-actions{display:flex; gap:10px; margin-top:20px;}
+  .modal-actions button{flex:1;}
+
+  .toast-container{position:fixed; bottom:20px; right:20px; z-index:200; display:flex; flex-direction:column; gap:10px;}
+  .toast{
+    background:var(--panel-light); border:1px solid var(--border); border-left:4px solid var(--accent);
+    padding:12px 16px; border-radius:8px; font-size:14px; min-width:240px;
+    box-shadow:0 4px 12px rgba(0,0,0,.3); animation:slideIn .2s ease;
+  }
+  .toast.success{border-left-color:var(--green);}
+  .toast.error{border-left-color:var(--red);}
+  @keyframes slideIn{from{transform:translateX(30px); opacity:0;} to{transform:translateX(0); opacity:1;}}
+
+  .badge-role{padding:3px 9px; border-radius:10px; font-size:11px; text-transform:uppercase; letter-spacing:.03em;}
+  .badge-role.admin{background:rgba(245,158,11,.15); color:var(--orange);}
+  .badge-role.magasinier{background:rgba(59,130,246,.15); color:var(--accent);}
+
+  .badge-statut{padding:3px 10px; border-radius:10px; font-size:11px; font-weight:600; white-space:nowrap; text-transform:uppercase; letter-spacing:.03em;}
+  .badge-statut.disponible{background:rgba(34,197,94,.15); color:var(--green);}
+  .badge-statut.emprunte{background:rgba(59,130,246,.15); color:var(--accent);}
+  .badge-statut.en_retard{background:rgba(239,68,68,.15); color:var(--red);}
+  .badge-statut.hors_service{background:rgba(148,163,184,.15); color:var(--text-dim);}
+
+  .toolbar{
+    display:flex; gap:8px; flex-wrap:nowrap; align-items:center;
+    overflow-x:auto; overflow-y:hidden;
+    position:sticky; top:0; z-index:15; background:var(--panel);
+    margin:0 0 14px; padding:4px 0 10px; border-bottom:1px solid var(--border);
+  }
+  .toolbar select, .toolbar input[type="text"]{width:auto; min-width:130px; flex-shrink:0;}
+  .toolbar input[type="text"]{flex:1 1 180px; min-width:140px;}
+  .toolbar .spacer{flex:1 0 auto;}
+  .toolbar button{flex-shrink:0;}
+
+  .thumb{width:42px; height:42px; border-radius:6px; object-fit:cover; background:var(--panel-light); display:block;}
+  .thumb-placeholder{width:42px; height:42px; border-radius:6px; background:var(--panel-light); display:flex; align-items:center; justify-content:center; font-size:18px;}
+
+  .photo-upload-zone{
+    border:2px dashed var(--border); border-radius:10px; padding:16px; text-align:center;
+    cursor:pointer; margin-top:6px; position:relative;
+  }
+  .photo-upload-zone:hover{border-color:var(--accent);}
+  .photo-upload-zone img{max-width:100%; max-height:140px; border-radius:8px; margin-top:8px;}
+  .photo-upload-zone .up-hint{font-size:12px; color:var(--text-dim);}
+  .photo-upload-zone.uploading{opacity:.6; pointer-events:none;}
+
+  .pret-subtabs{display:flex; gap:4px; margin-bottom:18px; border-bottom:1px solid var(--border);}
+  .pret-subtab{background:none; color:var(--text-dim); font-size:14px; padding:10px 14px; border-radius:0; border-bottom:2px solid transparent;}
+  .pret-subtab.active{color:var(--text); border-bottom-color:var(--accent);}
+  .pret-subtab:hover{color:var(--text);}
+
+  .shift-banner{
+    background:var(--panel-light); border:1px solid var(--border); border-radius:10px;
+    padding:12px 14px; margin-bottom:16px; font-size:14px; color:var(--text-dim);
+  }
+  .shift-banner strong{color:var(--text);}
+
+  .badge-statut.bientot_retard{background:rgba(245,158,11,.15); color:var(--orange);}
+
+  .stats-grid{display:grid; grid-template-columns:repeat(4, 1fr); gap:14px; margin-bottom:16px;}
+  .stat-card{background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:18px 20px; border-top:3px solid var(--accent); box-shadow:0 4px 14px rgba(0,0,0,.2);}
+  .stat-value{font-size:28px; font-weight:700; color:var(--text);}
+  .stat-label{font-size:12px; color:var(--text-dim); margin-top:4px; text-transform:uppercase; letter-spacing:.03em;}
+  .stat-card.stat-warn .stat-value{color:var(--orange);}
+  .stat-card.stat-warn{border-top-color:var(--orange);}
+  .stat-card.stat-danger .stat-value{color:var(--red);}
+  .stat-card.stat-danger{border-top-color:var(--red);}
+  @media (max-width:768px){ .stats-grid{grid-template-columns:repeat(2, 1fr);} }
+
+  .garage-breakdown{display:flex; flex-wrap:wrap; gap:10px;}
+  .garage-pill{
+    display:flex; align-items:center; gap:8px; background:var(--panel-light); border:1px solid var(--border);
+    border-radius:10px; padding:10px 14px; font-size:13px;
+  }
+  .garage-pill .gp-name{font-weight:600;}
+  .garage-pill .gp-count{padding:2px 8px; border-radius:10px; font-size:12px; font-weight:700;}
+  .garage-pill .gp-count.zero{background:rgba(148,163,184,.15); color:var(--text-dim);}
+  .garage-pill .gp-count.some{background:rgba(239,68,68,.15); color:var(--red);}
+
+  .bar-list{display:flex; flex-direction:column; gap:12px;}
+  .bar-row .bar-row-top{display:flex; justify-content:space-between; font-size:13px; margin-bottom:5px;}
+  .bar-row.row-clickable{cursor:pointer; padding:4px; margin:-4px; border-radius:6px; transition:background .12s;}
+  .bar-row.row-clickable:hover{background:rgba(47,111,237,.12);}
+  .bar-row .bar-row-top .brt-name{color:var(--text);}
+  .bar-row .bar-row-top .brt-value{color:var(--text-dim); font-weight:600;}
+  .bar-track{background:var(--panel-light); border-radius:6px; height:8px; overflow:hidden;}
+  .bar-fill{height:100%; background:var(--accent); border-radius:6px;}
+  .bar-fill.danger{background:var(--red);}
+
+  @media (max-width:768px){
+    #sidebar, #sidebar.collapsed{
+      position:fixed; bottom:0; left:0; right:0; width:100%; height:60px; padding:0;
+      display:flex; flex-direction:row; z-index:50; overflow-x:auto;
+    }
+    #sidebarToggle{display:none;}
+    #sidebar h2, .nav-divider{display:none;}
+    .nav-item{flex-direction:column; font-size:10px; gap:2px; padding:8px; border-radius:6px; flex-shrink:0; min-width:64px; justify-content:center;}
+    .nav-label{display:inline;}
+    #mainScroll{padding:16px; padding-bottom:80px;}
+    .topbar{flex-direction:column; align-items:flex-start; gap:10px; padding:16px 16px 12px;}
+  }
+</style>
+</head>
+<body>
+
+<div id="loginScreen">
+  <div class="login-box">
+    <h1>🔧 Prêt Outillage</h1>
+    <div class="subtitle" id="loginSubtitle">Connexion Magasinier / Admin</div>
+
+    <div id="loginForm">
+      <label>Matricule</label>
+      <input type="text" id="loginMatricule" placeholder="Ex: 45210" autocomplete="off" maxlength="5" inputmode="numeric" pattern="\d*" oninput="this.value=this.value.replace(/\D/g,'').slice(0,5)">
+      <label>Mot de passe</label>
+      <input type="password" id="loginPassword" placeholder="••••••••">
+      <label style="display:flex; align-items:center; gap:8px; margin-top:14px; cursor:pointer;">
+        <input type="checkbox" id="loginRemember" style="width:auto;">
+        <span style="margin:0;">Rester connecté</span>
+      </label>
+      <button class="btn-primary" onclick="handleLogin()">Se connecter</button>
+      <div class="error-msg" id="loginError"></div>
+    </div>
+  </div>
+</div>
+
+<div id="app">
+  <div class="layout">
+    <div id="sidebar">
+      <div id="sidebarToggle" onclick="toggleSidebar()" title="Réduire/agrandir le menu">☰</div>
+      <h2>🔧 <span class="brand-accent">Prêt</span> <span class="nav-label">Outillage</span></h2>
+      <div class="nav-item active" data-view="dashboard" data-tooltip="Dashboard" onclick="switchView('dashboard')">📊 <span class="nav-label">Dashboard</span> <span id="navRetardBadge" class="nav-badge" style="display:none;"></span></div>
+      <div class="nav-item" data-view="garages" data-tooltip="Garages" onclick="switchView('garages')">🏢 <span class="nav-label">Garages</span></div>
+      <div class="nav-item" data-view="mecaniciens" data-tooltip="Agents" onclick="switchView('mecaniciens')">👷 <span class="nav-label">Agents</span></div>
+      <div class="nav-item" data-view="outils" data-tooltip="Catalogue outils" onclick="switchView('outils')">🧰 <span class="nav-label">Catalogue outils</span></div>
+      <div class="nav-item" data-view="prets" data-tooltip="Prêts / Retours" onclick="switchView('prets')">📋 <span class="nav-label">Prêts / Retours</span></div>
+      <div class="nav-item" data-view="historique" data-tooltip="Historique" onclick="switchView('historique')">🕒 <span class="nav-label">Historique</span></div>
+      <div class="nav-item admin-only" data-view="stats" data-tooltip="Statistiques" onclick="switchView('stats')">📈 <span class="nav-label">Statistiques</span></div>
+      <div class="nav-item admin-only" data-view="utilisateurs" data-tooltip="Utilisateurs" onclick="switchView('utilisateurs')">👤 <span class="nav-label">Utilisateurs</span></div>
+      <div class="nav-item admin-only" data-view="demandes" data-tooltip="Demandes" onclick="switchView('demandes')">📩 <span class="nav-label">Demandes</span> <span id="navDemandeBadge" class="nav-badge" style="display:none;"></span></div>
+      <div class="nav-item" data-view="monprofil" data-tooltip="Mon profil" onclick="switchView('monprofil')">🔑 <span class="nav-label">Mon profil</span></div>
+      <div class="nav-divider"></div>
+      <div class="nav-item" data-tooltip="Déconnexion" onclick="handleLogout()">🚪 <span class="nav-label">Déconnexion</span></div>
+    </div>
+
+    <div id="mainContent">
+      <div class="topbar">
+        <h1 id="viewTitle">Dashboard</h1>
+        <div class="user-pill">
+          <span id="userNamePill"></span>
+          <span class="badge" id="userRolePill"></span>
+          <span class="logout-link" onclick="handleLogout()">Déconnexion</span>
+        </div>
+      </div>
+
+      <div id="mainScroll">
+      <div id="view-dashboard" class="view-panel">
+        <div class="shift-banner" id="dashboardShiftBanner"></div>
+
+        <div class="stats-grid">
+          <div class="stat-card row-clickable" onclick="switchView('outils')" title="Voir le catalogue">
+            <div class="stat-value" id="statTotalOutils">0</div>
+            <div class="stat-label">Outils au catalogue</div>
+          </div>
+          <div class="stat-card row-clickable" onclick="switchView('prets'); switchPretSubtab('cours');" title="Voir les prêts en cours">
+            <div class="stat-value" id="statEmpruntes">0</div>
+            <div class="stat-label">Outils empruntés</div>
+          </div>
+          <div class="stat-card stat-warn row-clickable" onclick="switchView('prets'); switchPretSubtab('cours');" title="Voir les prêts en cours">
+            <div class="stat-value" id="statBientotRetard">0</div>
+            <div class="stat-label">Retour proche</div>
+          </div>
+          <div class="stat-card stat-danger row-clickable" onclick="switchView('prets'); switchPretSubtab('cours');" title="Voir les prêts en cours">
+            <div class="stat-value" id="statEnRetard">0</div>
+            <div class="stat-label">En retard</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Prêts en cours — les plus urgents</h3>
+          <table>
+            <thead>
+              <tr>
+                <th></th><th>Outil</th><th>Emplacement</th><th>Agent</th><th>Garage</th><th>Retour prévu</th><th>Statut</th>
+              </tr>
+            </thead>
+            <tbody id="dashboardAlertsBody"></tbody>
+          </table>
+          <div id="dashboardAlertsEmpty" class="empty-state" style="display:none;">Aucun outil emprunté pour le moment.</div>
+        </div>
+
+        <div class="card">
+          <h3>Retards par garage</h3>
+          <div id="dashboardGarageBreakdown" class="garage-breakdown"></div>
+          <div id="dashboardGarageBreakdownEmpty" class="empty-state" style="display:none;">Aucun garage enregistré.</div>
+        </div>
+      </div>
+
+      <div id="view-garages" class="view-panel" style="display:none;">
+        <div class="card">
+          <h3>Garages</h3>
+          <div style="margin-bottom:14px;">
+            <button class="btn-primary" style="width:auto;" onclick="openGarageModal()">+ Ajouter un garage</button>
+          </div>
+          <table>
+            <thead><tr><th>Nom</th><th>Vanas configurées</th><th style="text-align:right;">Actions</th></tr></thead>
+            <tbody id="garagesTableBody"></tbody>
+          </table>
+          <div id="garagesEmpty" class="empty-state" style="display:none;">Aucun garage enregistré.</div>
+        </div>
+      </div>
+
+      <div id="view-mecaniciens" class="view-panel" style="display:none;">
+        <div class="card">
+          <h3>Agents</h3>
+          <div style="margin-bottom:14px; display:flex; gap:10px; flex-wrap:wrap;">
+            <button class="btn-primary" style="width:auto;" onclick="openMecanicienModal()">+ Ajouter un agent</button>
+            <button class="btn-secondary admin-only" style="width:auto;" onclick="openImportAgentsModal()">🔄 Importer depuis Servantes Outillage</button>
+          </div>
+          <div class="toolbar">
+            <input type="text" id="mecanicienSearchInput" placeholder="Rechercher un agent..." oninput="renderMecaniciens()">
+            <select id="mecanicienFilterGarage" onchange="renderMecaniciens()"><option value="">Tous les garages</option></select>
+            <select id="mecanicienFilterFonction" onchange="renderMecaniciens()"><option value="">Toutes les fonctions</option></select>
+            <div class="spacer"></div>
+          </div>
+          <table>
+            <thead><tr><th>Nom</th><th>Matricule</th><th>Fonction</th><th>Garage</th><th>Équipe</th><th style="text-align:right;">Actions</th></tr></thead>
+            <tbody id="mecaniciensTableBody"></tbody>
+          </table>
+          <div id="mecaniciensEmpty" class="empty-state" style="display:none;">Aucun agent trouvé.</div>
+        </div>
+      </div>
+
+      <div id="view-outils" class="view-panel" style="display:none;">
+        <div class="card">
+          <h3>Catalogue outils</h3>
+          <div class="toolbar">
+            <button class="btn-primary" style="width:auto; margin-top:0;" onclick="openOutilModal()">+ Ajouter un outil</button>
+            <input type="text" id="outilSearchInput" placeholder="Rechercher un outil..." oninput="renderOutils()">
+            <select id="outilFilterGarage" onchange="renderOutils()"><option value="">Tous les garages</option></select>
+            <select id="outilFilterCategorie" onchange="renderOutils()"><option value="">Toutes les catégories</option></select>
+            <div class="spacer"></div>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th></th><th>Nom / Catégorie</th><th>Garage</th><th>Emplacement</th><th>Statut</th>
+                <th style="text-align:right;">Actions</th>
+              </tr>
+            </thead>
+            <tbody id="outilsTableBody"></tbody>
+          </table>
+          <div id="outilsEmpty" class="empty-state" style="display:none;">Aucun outil trouvé.</div>
+        </div>
+      </div>
+      <div id="view-prets" class="view-panel" style="display:none;">
+        <div class="card">
+          <div class="pret-subtabs">
+            <button class="pret-subtab active" data-subtab="nouveau" onclick="switchPretSubtab('nouveau')">+ Nouveau prêt</button>
+            <button class="pret-subtab" data-subtab="cours" onclick="switchPretSubtab('cours')">Prêts en cours</button>
+          </div>
+
+          <div id="pretSubtab-nouveau" class="pret-subpanel">
+            <div class="shift-banner" id="shiftBanner"></div>
+            <label>Garage</label>
+            <select id="pretGarage" onchange="onPretGarageChange()"><option value="">Choisir un garage</option></select>
+
+            <label>Outil à emprunter</label>
+            <input type="text" id="pretOutilSearch" placeholder="🔍 Rechercher par nom, catégorie ou référence..." oninput="filterPretOutilOptions()" style="margin-bottom:8px;">
+            <div style="display:flex; gap:8px;">
+              <select id="pretOutil" style="flex:1;" onchange="updatePretOutilPreview()"><option value="">— Choisir d'abord un garage —</option></select>
+              <button type="button" class="btn-secondary" style="width:auto; white-space:nowrap;" onclick="scanForPret()">📷 Scanner</button>
+            </div>
+            <div id="pretOutilPreviewZone" style="display:none; margin-top:8px; align-items:center; gap:10px;">
+              <img id="pretOutilPreviewImg" class="thumb" style="width:56px; height:56px;">
+              <div id="pretOutilPreviewPlaceholder" class="thumb-placeholder" style="width:56px; height:56px; font-size:22px; display:none;">🔧</div>
+              <span id="pretOutilPreviewText" style="font-size:13px; color:var(--text-dim);"></span>
+            </div>
+
+            <div id="pretQuantiteZone" style="display:none; margin-top:12px;">
+              <label>Nombre d'outils empruntés</label>
+              <input type="number" id="pretQuantite" min="1" step="1" value="1" style="max-width:120px;" oninput="clampPretQuantite()">
+              <span id="pretQuantiteHint" style="font-size:12px; color:var(--text-dim); margin-left:8px;"></span>
+            </div>
+
+            <label>Agent emprunteur</label>
+            <input type="text" id="pretMecanicienSearch" placeholder="🔍 Rechercher par nom ou matricule..." oninput="filterPretMecanicienOptions()" style="margin-bottom:8px;">
+            <select id="pretMecanicien"><option value="">— Choisir d'abord un garage —</option></select>
+
+            <div class="error-msg" id="pretFormError"></div>
+            <button class="btn-primary" id="submitPretBtn" onclick="submitPret()">Enregistrer le prêt</button>
+          </div>
+
+          <div id="pretSubtab-cours" class="pret-subpanel" style="display:none;">
+            <div class="toolbar">
+              <select id="pretsFilterGarage" onchange="renderPretsEnCours()"><option value="">Tous les garages</option></select>
+              <div class="spacer"></div>
+            </div>
+            <table>
+              <thead>
+                <tr>
+                  <th></th><th>Outil</th><th>Emplacement</th><th>Agent</th><th>Garage</th><th>Shift</th><th>Retour prévu</th><th>Statut</th>
+                  <th style="text-align:right;">Actions</th>
+                </tr>
+              </thead>
+              <tbody id="pretsEnCoursBody"></tbody>
+            </table>
+            <div id="pretsEnCoursEmpty" class="empty-state" style="display:none;">Aucun prêt en cours.</div>
+          </div>
+        </div>
+      </div>
+      <div id="view-historique" class="view-panel" style="display:none;">
+        <div class="card">
+          <h3>Historique des prêts</h3>
+          <div class="toolbar">
+            <input type="text" id="histSearchInput" placeholder="Rechercher outil ou agent..." oninput="renderHistorique()">
+            <select id="histFilterGarage" onchange="renderHistorique()"><option value="">Tous les garages</option></select>
+            <select id="histFilterMecanicien" onchange="renderHistorique()"><option value="">Tous les agents</option></select>
+            <select id="histFilterStatut" onchange="renderHistorique()">
+              <option value="">Tous les statuts</option>
+              <option value="en_cours">En cours</option>
+              <option value="retourne">Retourné</option>
+            </select>
+            <div class="spacer"></div>
+            <button class="btn-secondary" onclick="loadHistorique(true)">🔄 Actualiser</button>
+            <button class="btn-secondary" onclick="exportHistoriquePDF()">📄 Exporter en PDF</button>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Outil</th><th>Matricule</th><th>Agent</th><th>Garage</th><th>Shift</th>
+                <th>Prêté le</th><th>Retour prévu</th><th>Retour réel</th><th>État</th><th>Statut</th>
+              </tr>
+            </thead>
+            <tbody id="histTableBody"></tbody>
+          </table>
+          <div id="histEmpty" class="empty-state" style="display:none;">Aucun prêt trouvé.</div>
+          <div style="text-align:center; margin-top:14px;">
+            <button class="btn-secondary" id="histLoadMoreBtn" style="width:auto;" onclick="chargerPlusHistorique()">Charger 300 prêts de plus</button>
+          </div>
+        </div>
+      </div>
+      <div id="view-stats" class="view-panel" style="display:none;">
+        <div class="stats-grid" style="grid-template-columns:repeat(2, 1fr);">
+          <div class="stat-card">
+            <div class="stat-value" id="statDureeMoyenne">—</div>
+            <div class="stat-label">Durée moyenne d'emprunt</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-value" id="statTauxRetardGlobal">—</div>
+            <div class="stat-label">Taux de retard global</div>
+          </div>
+        </div>
+
+        <div class="card">
+          <h3>Outils les plus empruntés</h3>
+          <div id="statTopOutils" class="bar-list"></div>
+          <div id="statTopOutilsEmpty" class="empty-state" style="display:none;">Pas encore de données.</div>
+        </div>
+
+        <div class="card">
+          <h3>Agents avec le plus de retards</h3>
+          <div id="statTopRetards" class="bar-list"></div>
+          <div id="statTopRetardsEmpty" class="empty-state" style="display:none;">Pas encore de retards enregistrés.</div>
+        </div>
+
+        <div class="card">
+          <h3>Taux de retard par garage</h3>
+          <div id="statTauxGarage" class="bar-list"></div>
+          <div id="statTauxGarageEmpty" class="empty-state" style="display:none;">Aucun garage enregistré.</div>
+        </div>
+
+        <div class="card">
+          <h3>Taux de retard par équipe</h3>
+          <div id="statTauxEquipe" class="bar-list"></div>
+          <div id="statTauxEquipeEmpty" class="empty-state" style="display:none;">Aucune équipe renseignée sur les agents.</div>
+        </div>
+
+        <div class="card">
+          <h3>Taux de retard par shift</h3>
+          <div id="statTauxShift" class="bar-list"></div>
+        </div>
+      </div>
+
+      <div id="view-utilisateurs" class="view-panel" style="display:none;">
+        <div class="card">
+          <h3>Utilisateurs (Magasiniers / Admins)</h3>
+          <div style="margin-bottom:14px;">
+            <button class="btn-primary" style="width:auto;" onclick="openUserModal()">+ Ajouter un utilisateur</button>
+          </div>
+          <table>
+            <thead><tr><th>Nom</th><th>Matricule</th><th>Rôle</th><th style="text-align:right;">Actions</th></tr></thead>
+            <tbody id="usersTableBody"></tbody>
+          </table>
+          <div id="usersEmpty" class="empty-state" style="display:none;">Aucun utilisateur enregistré.</div>
+        </div>
+
+        <div class="card">
+          <h3>Sauvegarde</h3>
+          <p style="font-size:13px; color:var(--text-dim); margin-bottom:14px;">
+            Exporte toutes les données de l'application (garages, agents, outils, prêts/historique) dans un fichier JSON,
+            en cas de besoin de restauration ou de vérification. Les mots de passe ne sont jamais inclus.
+          </p>
+          <button class="btn-secondary" style="width:auto;" onclick="exportBackupJSON()">💾 Exporter une sauvegarde complète (JSON)</button>
+        </div>
+      </div>
+
+      <div id="view-demandes" class="view-panel" style="display:none;">
+        <div class="card">
+          <h3>Demandes des magasiniers</h3>
+          <div class="toolbar">
+            <select id="demandesFilterStatut" onchange="renderDemandes()">
+              <option value="en_attente">En attente</option>
+              <option value="traitee">Traitées</option>
+              <option value="">Toutes</option>
+            </select>
+            <div class="spacer"></div>
+          </div>
+          <table>
+            <thead><tr><th>Élément</th><th>Type</th><th>Message</th><th>Demandeur</th><th>Date</th><th>Statut</th><th style="text-align:right;">Actions</th></tr></thead>
+            <tbody id="demandesTableBody"></tbody>
+          </table>
+          <div id="demandesEmpty" class="empty-state" style="display:none;">Aucune demande.</div>
+        </div>
+      </div>
+
+      <div id="view-monprofil" class="view-panel" style="display:none;">
+        <div class="card" style="max-width:420px;">
+          <h3>Mon profil</h3>
+          <p style="font-size:14px; color:var(--text-dim); margin-top:-6px; margin-bottom:18px;" id="monProfilInfo"></p>
+
+          <label>Mot de passe actuel</label>
+          <input type="password" id="mpAncienPassword" placeholder="••••••••">
+          <label>Nouveau mot de passe</label>
+          <input type="password" id="mpNouveauPassword" placeholder="••••••••">
+          <label>Confirmer le nouveau mot de passe</label>
+          <input type="password" id="mpConfirmPassword" placeholder="••••••••">
+          <div class="error-msg" id="monProfilError"></div>
+          <div class="success-msg" id="monProfilSuccess" style="display:none; color:var(--green); font-size:13px; margin-top:8px;"></div>
+          <button class="btn-primary" id="monProfilBtn" onclick="changerMonMotDePasse()">Changer le mot de passe</button>
+        </div>
+      </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Garage -->
+<div class="modal-overlay" id="garageModal">
+  <div class="modal">
+    <h3 id="garageModalTitle">Ajouter un garage</h3>
+    <label>Nom du garage</label>
+    <input type="text" id="garageNom" placeholder="Ex: 2K_Pike">
+    <label>Méthode de localisation des outils</label>
+    <select id="garageMethodeLocalisation" onchange="toggleGarageVanasFields()">
+      <option value="vanas">Vanas (tiroirs numérotés)</option>
+      <option value="autre">Autre méthode (à définir plus tard)</option>
+    </select>
+    <div id="garageVanasFields">
+      <label>Nombre de Vanas</label>
+      <select id="garageNbVanas">
+        <option value="1">1 Vana</option>
+        <option value="2" selected>2 Vanas</option>
+        <option value="3">3 Vanas</option>
+        <option value="4">4 Vanas</option>
+      </select>
+      <label>Tiroirs par Vana</label>
+      <input type="number" id="garageTiroirs" value="36" min="1">
+    </div>
+    <div class="hint" id="garageAutreNote" style="display:none; margin-top:6px; text-align:left;">
+      L'emplacement des outils ne sera pas demandé pour ce garage tant qu'une méthode n'est pas configurée.
+    </div>
+    <div class="error-msg" id="garageModalError"></div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal('garageModal')">Annuler</button>
+      <button class="btn-primary" style="margin-top:0;" onclick="saveGarage()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Agent -->
+<div class="modal-overlay" id="mecanicienModal">
+  <div class="modal">
+    <h3 id="mecanicienModalTitle">Ajouter un agent</h3>
+    <label>Prénom</label>
+    <input type="text" id="mecanicienPrenom" placeholder="Ex: Karim" onblur="this.value = toSentenceCase(this.value)">
+    <label>Nom</label>
+    <input type="text" id="mecanicienNom" placeholder="Ex: Alaoui" onblur="this.value = toSentenceCase(this.value)">
+    <label>Matricule</label>
+    <input type="text" id="mecanicienMatricule" placeholder="Ex: 33120" maxlength="5" inputmode="numeric" pattern="\d*" oninput="this.value=this.value.replace(/\D/g,'').slice(0,5)">
+    <label>Garage</label>
+    <select id="mecanicienGarage"></select>
+    <label>Fonction</label>
+    <input type="text" id="mecanicienFonction" list="fonctionList" placeholder="Ex: Agent de maintenance, Magasinier, Brigadier...">
+    <datalist id="fonctionList">
+      <option value="Agent de maintenance">
+      <option value="Magasinier">
+      <option value="Brigadier">
+      <option value="Mécanicien">
+      <option value="Chef d'équipe">
+    </datalist>
+    <label>Équipe / Shift (optionnel)</label>
+    <input type="text" id="mecanicienEquipe" list="equipeList" placeholder="Ex: A Choc, B Night Shift...">
+    <datalist id="equipeList">
+      <option value="A Choc"><option value="B Choc"><option value="C Choc"><option value="D Choc">
+      <option value="A Night Shift"><option value="B Night Shift"><option value="C Night Shift"><option value="D Night Shift">
+    </datalist>
+    <div class="error-msg" id="mecanicienModalError"></div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal('mecanicienModal')">Annuler</button>
+      <button class="btn-primary" style="margin-top:0;" onclick="saveMecanicien()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Outil -->
+<div class="modal-overlay" id="outilModal">
+  <div class="modal">
+    <h3 id="outilModalTitle">Ajouter un outil</h3>
+
+    <label>Photo</label>
+    <div class="photo-upload-zone" id="outilPhotoZone" onclick="document.getElementById('outilPhotoInput').click()">
+      <div class="up-hint" id="outilPhotoHint">Cliquer pour ajouter une photo</div>
+      <img id="outilPhotoPreview" style="display:none;">
+    </div>
+    <input type="file" id="outilPhotoInput" accept="image/*" style="display:none;" onchange="handleOutilPhotoSelected(event)">
+
+    <label>Nom de l'outil</label>
+    <input type="text" id="outilNom" placeholder="Ex: Clé dynamométrique 1/2" onblur="this.value = toSentenceCase(this.value)">
+
+    <label>Catégorie</label>
+    <input type="text" id="outilCategorie" list="outilCategorieList" placeholder="Ex: Clés, Pneumatique..." onblur="this.value = toSentenceCase(this.value)">
+    <datalist id="outilCategorieList"></datalist>
+
+    <label>Référence (optionnel)</label>
+    <input type="text" id="outilReference" placeholder="Ex: REF-4521">
+
+    <label>Code-barres / QR (optionnel)</label>
+    <div style="display:flex; gap:8px;">
+      <input type="text" id="outilCodeBarre" placeholder="Scanner ou saisir un code" style="flex:1;">
+      <button type="button" class="btn-secondary" style="width:auto; white-space:nowrap;" onclick="openScannerModal(function(code){ document.getElementById('outilCodeBarre').value = code; })">📷 Scanner</button>
+    </div>
+
+    <label>Garage</label>
+    <select id="outilGarage" onchange="populateVanaTiroirSelects()"></select>
+
+    <div style="display:flex; gap:10px;" id="outilVanaTiroirFields">
+      <div style="flex:1;">
+        <label>Vanas</label>
+        <select id="outilVana"></select>
+      </div>
+      <div style="flex:1;">
+        <label>Tiroir</label>
+        <select id="outilTiroir"></select>
+      </div>
+    </div>
+    <div class="hint" id="outilAutreLocalisationNote" style="display:none; margin-top:6px; text-align:left;">
+      Ce garage n'utilise pas encore le système de Vanas — l'emplacement de cet outil ne sera pas suivi tant que la méthode n'est pas définie.
+    </div>
+
+    <label>Quantité disponible</label>
+    <input type="number" id="outilQuantite" value="1" min="1" step="1">
+    <div class="hint" style="margin-top:6px; text-align:left;">
+      Nombre d'exemplaires identiques de cet outil. Plusieurs agents pourront l'emprunter en même temps tant qu'il en reste de disponible.
+    </div>
+
+    <label>Statut</label>
+    <select id="outilStatut">
+      <option value="disponible">En service</option>
+      <option value="hors_service">Hors service (retiré du parc)</option>
+    </select>
+
+    <div class="error-msg" id="outilModalError"></div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal('outilModal')">Annuler</button>
+      <button class="btn-primary" style="margin-top:0;" onclick="saveOutil()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Retour -->
+<div class="modal-overlay" id="retourModal">
+  <div class="modal">
+    <h3>Retour d'outil</h3>
+    <p id="retourOutilInfo" style="font-size:14px; color:var(--text-dim); margin-bottom:14px;"></p>
+
+    <label>État de l'outil au retour</label>
+    <select id="retourEtat">
+      <option value="bon_etat">Bon état</option>
+      <option value="endommage">Endommagé</option>
+    </select>
+
+    <div id="retourEmplacementFields">
+      <label>Emplacement de rangement</label>
+      <div style="display:flex; gap:10px;">
+        <div style="flex:1;">
+          <label style="margin-top:0;">Vanas</label>
+          <select id="retourVana"></select>
+        </div>
+        <div style="flex:1;">
+          <label style="margin-top:0;">Tiroir</label>
+          <select id="retourTiroir"></select>
+        </div>
+      </div>
+    </div>
+    <div class="hint" id="retourAutreLocalisationNote" style="display:none; margin-top:6px; text-align:left;">
+      Ce garage n'utilise pas encore le système de Vanas — aucun emplacement à renseigner pour l'instant.
+    </div>
+
+    <div class="error-msg" id="retourModalError"></div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal('retourModal')">Annuler</button>
+      <button class="btn-primary" id="confirmRetourBtn" style="margin-top:0;" onclick="confirmRetour()">Confirmer le retour</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Utilisateur -->
+<div class="modal-overlay" id="userModal">
+  <div class="modal">
+    <h3 id="userModalTitle">Ajouter un utilisateur</h3>
+    <label>Lier à un agent existant (optionnel)</label>
+    <select id="userLinkMecanicien" onchange="onUserLinkMecanicienChange()">
+      <option value="">— Saisie manuelle —</option>
+    </select>
+    <label>Nom complet</label>
+    <input type="text" id="userNom" placeholder="Ex: Karim Alaoui" onblur="this.value = toSentenceCase(this.value)">
+    <label>Matricule</label>
+    <input type="text" id="userMatricule" placeholder="Ex: 55210" maxlength="5" inputmode="numeric" pattern="\d*" oninput="this.value=this.value.replace(/\D/g,'').slice(0,5)">
+    <label>Rôle</label>
+    <select id="userRole">
+      <option value="magasinier">Magasinier</option>
+      <option value="admin">Admin</option>
+    </select>
+    <div id="userPasswordSection">
+      <label id="userPasswordLabel">Mot de passe</label>
+      <input type="password" id="userPassword" placeholder="Choisir un mot de passe (6 caractères min.)">
+    </div>
+    <div class="hint" id="userPasswordHint" style="display:none; margin-top:6px; text-align:left;">
+      Le matricule et le mot de passe ne peuvent plus être modifiés ici une fois le compte créé
+      (sécurité Firebase). En cas d'oubli de mot de passe, utilise l'outil d'administration séparé
+      (<code>admin-tool.js</code>) sur ton ordinateur.
+    </div>
+    <div class="error-msg" id="userModalError"></div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal('userModal')">Annuler</button>
+      <button class="btn-primary" style="margin-top:0;" onclick="saveUser()">Enregistrer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Scanner -->
+<div class="modal-overlay" id="scannerModal">
+  <div class="modal">
+    <h3>Scanner un code</h3>
+    <div id="scannerReader" style="width:100%; border-radius:10px; overflow:hidden;"></div>
+    <div class="error-msg" id="scannerError"></div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeScannerModal()">Annuler</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Import Agents -->
+<div class="modal-overlay" id="importAgentsModal">
+  <div class="modal" style="max-width:720px;">
+    <h3>Importer les agents depuis Servantes Outillage</h3>
+    <div id="importAgentsBody">
+      <p class="empty-state">Chargement des agents...</p>
+    </div>
+    <div class="error-msg" id="importAgentsError"></div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal('importAgentsModal')">Fermer</button>
+      <button class="btn-primary" id="importAgentsConfirmBtn" style="margin-top:0; display:none;" onclick="confirmImportAgents()">Importer</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal Demande -->
+<div class="modal-overlay" id="demandeModal">
+  <div class="modal">
+    <h3>Demande à l'administrateur</h3>
+    <p style="font-size:14px; color:var(--text-dim); margin-bottom:14px;" id="demandeElementInfo"></p>
+
+    <label>Type de demande</label>
+    <select id="demandeType">
+      <option value="modification">Modification</option>
+      <option value="suppression">Suppression</option>
+      <option value="autre">Autre correction</option>
+    </select>
+
+    <label>Message pour l'admin</label>
+    <textarea id="demandeMessage" rows="4" placeholder="Décris précisément ce qui doit être changé..." style="width:100%; padding:11px 12px; border:1px solid var(--border); border-radius:8px; background:var(--panel-light); color:var(--text); font-family:inherit; font-size:14px; resize:vertical;"></textarea>
+
+    <div class="error-msg" id="demandeModalError"></div>
+    <div class="modal-actions">
+      <button class="btn-secondary" onclick="closeModal('demandeModal')">Annuler</button>
+      <button class="btn-primary" id="demandeSubmitBtn" style="margin-top:0;" onclick="submitDemande()">Envoyer la demande</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-container" id="toastContainer"></div>
+
+<script>
+// ---------- Firebase config ----------
+const firebaseConfig = {
+  apiKey: "AIzaSyBVL94yaH2-Lvf-O6lsbXqekYXvBrs7DEg",
+  authDomain: "pret-outillage.firebaseapp.com",
+  projectId: "pret-outillage",
+  storageBucket: "pret-outillage.firebasestorage.app",
+  messagingSenderId: "855600107881",
+  appId: "1:855600107881:web:b7fd23be0c141332b92df8"
+};
+firebase.initializeApp(firebaseConfig);
+const db = firebase.firestore();
+const auth = firebase.auth();
+
+// ---------- Cloudinary config ----------
+const CLOUDINARY_CLOUD_NAME = 't2mnypds';
+const CLOUDINARY_UPLOAD_PRESET = 'pret_outillage';
+
+// ---------- Shifts ----------
+const SHIFTS = [
+  { id: 'matin', label: '06h - 14h', startH: 6,  endH: 14 },
+  { id: 'aprem', label: '14h - 22h', startH: 14, endH: 22 },
+  { id: 'nuit',  label: '22h - 06h', startH: 22, endH: 6  }
+];
+function getCurrentShift(date = new Date()){
+  const h = date.getHours();
+  if (h >= 6 && h < 14) return SHIFTS[0];
+  if (h >= 14 && h < 22) return SHIFTS[1];
+  return SHIFTS[2];
+}
+function getShiftEndDate(date = new Date(), shift = getCurrentShift(date)){
+  const end = new Date(date);
+  if (shift.id === 'nuit'){
+    if (date.getHours() < 6){ end.setHours(6,0,0,0); }
+    else { end.setDate(end.getDate()+1); end.setHours(6,0,0,0); }
+  } else {
+    end.setHours(shift.endH,0,0,0);
+  }
+  return end;
+}
+function formatHeure(date){
+  return date.toLocaleTimeString('fr-FR', { hour:'2-digit', minute:'2-digit' });
+}
+function formatDateHeure(date){
+  return date.toLocaleDateString('fr-FR') + ' ' + formatHeure(date);
+}
+// Statut calculé en temps réel d'un prêt en cours (non stocké tel quel en base)
+function computePretEtat(pret){
+  if (pret.statut === 'retourne') return 'retourne';
+  const now = new Date();
+  const dueDate = pret.dateRetourPrevue.toDate ? pret.dateRetourPrevue.toDate() : new Date(pret.dateRetourPrevue);
+  const msRestant = dueDate - now;
+  if (msRestant <= 0) return 'en_retard';
+  if (msRestant <= 10*60*1000) return 'bientot_retard';
+  return 'emprunte';
+}
+
+// ---------- State ----------
+let currentUser = null;
+let garages = [];
+let mecaniciens = [];
+let outils = [];
+let prets = [];
+let editingGarageId = null;
+let editingMecanicienId = null;
+let editingOutilId = null;
+let outilPendingPhotoUrl = null;
+let retourPretIdEnCours = null;
+let currentGarageMecaniciens = [];
+let currentGarageOutilsDispo = [];
+
+// ---------- Utils ----------
+function showToast(message, type = 'info'){
+  const container = document.getElementById('toastContainer');
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.textContent = message;
+  container.appendChild(toast);
+  setTimeout(() => toast.remove(), 3500);
+}
+
+function escapeHtml(str){
+  if(str === null || str === undefined) return '';
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
+
+function sanitizeInput(str){
+  if(!str) return '';
+  return str.replace(/<[^>]*>/g, '').trim();
+}
+
+function isValidMatricule(str){
+  return /^\d{5}$/.test(str);
+}
+
+// Formate automatiquement en mettant une majuscule au début de chaque mot,
+// quelle que soit la casse saisie par le magasinier (ex: "CLÉ PLATE 13MM" -> "Clé Plate 13mm").
+function toSentenceCase(str){
+  if(!str) return str;
+  return str.toLowerCase().split(' ').map(mot => mot ? mot.charAt(0).toUpperCase() + mot.slice(1) : mot).join(' ');
+}
+
+function mecNomComplet(m){
+  if(!m) return '';
+  return ((m.prenom ? m.prenom + ' ' : '') + (m.nom || '')).trim();
+}
+
+// Génère les boutons d'action d'une ligne (Garage/Agent/Outil) selon le rôle :
+// admin -> Modifier/Supprimer directs ; magasinier -> bouton de demande à l'admin.
+function actionButtonsFor(type, id, nomAffiche){
+  if(currentUser && currentUser.role === 'admin'){
+    const openFn = type === 'garage' ? 'openGarageModal' : type === 'mecanicien' ? 'openMecanicienModal' : 'openOutilModal';
+    const delFn = type === 'garage' ? 'deleteGarage' : type === 'mecanicien' ? 'deleteMecanicien' : 'deleteOutil';
+    return `
+      <button class="btn-secondary" onclick="${openFn}('${id}')">Modifier</button>
+      <button class="btn-danger" onclick="${delFn}('${id}')">Supprimer</button>
+    `;
+  }
+  return `<button class="btn-secondary" onclick="openDemandeModal('${type}','${id}','${escapeHtml(nomAffiche).replace(/'/g,"\\'")}')">📩 Demander</button>`;
+}
+
+async function sha256Hex(text){
+  const enc = new TextEncoder().encode(text);
+  const buf = await crypto.subtle.digest('SHA-256', enc);
+  return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+function randomSalt(){
+  const arr = new Uint8Array(16);
+  crypto.getRandomValues(arr);
+  return Array.from(arr).map(b => b.toString(16).padStart(2,'0')).join('');
+}
+
+function openModal(id){ document.getElementById(id).classList.add('open'); }
+function closeModal(id){ document.getElementById(id).classList.remove('open'); }
+
+// ---------- Auth ----------
+const AUTH_DOMAIN_SUFFIX = 'pret-outillage.local';
+function matriculeToEmail(matricule){
+  return `${matricule}@${AUTH_DOMAIN_SUFFIX}`;
+}
+
+async function handleLogin(){
+  const matricule = sanitizeInput(document.getElementById('loginMatricule').value);
+  const password = document.getElementById('loginPassword').value;
+  const errEl = document.getElementById('loginError');
+  errEl.textContent = '';
+
+  if(!matricule || !password){
+    errEl.textContent = 'Matricule et mot de passe requis.';
+    return;
+  }
+
+  const remember = document.getElementById('loginRemember').checked;
+
+  try{
+    await auth.setPersistence(remember ? firebase.auth.Auth.Persistence.LOCAL : firebase.auth.Auth.Persistence.SESSION);
+    const cred = await auth.signInWithEmailAndPassword(matriculeToEmail(matricule), password);
+    const profileDoc = await db.collection('users').doc(cred.user.uid).get();
+    if(!profileDoc.exists){
+      errEl.textContent = "Compte introuvable — contacte l'administrateur.";
+      await auth.signOut();
+      return;
+    }
+    currentUser = { id: cred.user.uid, ...profileDoc.data() };
+    enterApp();
+  }catch(e){
+    console.error(e);
+    if(e.code === 'auth/invalid-credential' || e.code === 'auth/user-not-found' || e.code === 'auth/wrong-password'){
+      errEl.textContent = 'Matricule ou mot de passe incorrect.';
+    }else if(e.code === 'auth/too-many-requests'){
+      errEl.textContent = 'Trop de tentatives — réessaie dans quelques minutes.';
+    }else{
+      errEl.textContent = 'Erreur de connexion. Réessaie.';
+    }
+  }
+}
+
+function handleLogout(){
+  auth.signOut();
+  currentUser = null;
+  document.getElementById('app').style.display = 'none';
+  document.getElementById('loginScreen').style.display = 'flex';
+  document.getElementById('loginMatricule').value = '';
+  document.getElementById('loginPassword').value = '';
+}
+
+// Restaure la session automatiquement si Firebase Auth a déjà un utilisateur connecté
+// (persistance gérée nativement par Firebase selon le choix "Rester connecté").
+auth.onAuthStateChanged(async (user) => {
+  if(user && !currentUser){
+    try{
+      const profileDoc = await db.collection('users').doc(user.uid).get();
+      if(profileDoc.exists){
+        currentUser = { id: user.uid, ...profileDoc.data() };
+        enterApp();
+      }
+    }catch(e){ console.error(e); }
+  }
+});
+
+function enterApp(){
+  document.getElementById('loginScreen').style.display = 'none';
+  document.getElementById('app').style.display = 'block';
+  document.getElementById('userNamePill').textContent = currentUser.nom;
+  const roleEl = document.getElementById('userRolePill');
+  roleEl.textContent = currentUser.role === 'admin' ? 'Admin' : 'Magasinier';
+  roleEl.className = 'badge ' + (currentUser.role === 'admin' ? 'admin' : '');
+  document.querySelectorAll('.admin-only').forEach(el => {
+    el.style.display = currentUser.role === 'admin' ? '' : 'none';
+  });
+  if(localStorage.getItem('pretOutillage_sidebarCollapsed') === '1'){
+    document.getElementById('sidebar').classList.add('collapsed');
+  }
+  loadGarages();
+  loadMecaniciens();
+  loadOutils();
+  loadPrets();
+  updateShiftBanner();
+  renderDashboard();
+  if(currentUser.role === 'admin'){ loadUsers(); loadDemandes(); }
+  setInterval(()=>{
+    updateShiftBanner();
+    renderPretsEnCours();
+    renderDashboard();
+  }, 60000); // rafraîchit chaque minute (shift, alertes de retard)
+}
+
+function toggleSidebar(){
+  const sidebar = document.getElementById('sidebar');
+  const collapsed = sidebar.classList.toggle('collapsed');
+  localStorage.setItem('pretOutillage_sidebarCollapsed', collapsed ? '1' : '0');
+}
+
+// ---------- Navigation ----------
+function switchView(view){
+  document.querySelectorAll('.view-panel').forEach(el => el.style.display = 'none');
+  document.getElementById('view-' + view).style.display = 'block';
+  document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+  const navEl = document.querySelector(`.nav-item[data-view="${view}"]`);
+  if(navEl) navEl.classList.add('active');
+  const titles = {
+    dashboard:'Dashboard', garages:'Garages', mecaniciens:'Agents',
+    outils:'Catalogue outils', prets:'Prêts / Retours', historique:'Historique', stats:'Statistiques',
+    utilisateurs:'Utilisateurs', demandes:'Demandes', monprofil:'Mon profil'
+  };
+  document.getElementById('viewTitle').textContent = titles[view] || '';
+  if(view === 'dashboard') renderDashboard();
+  if(view === 'historique') loadHistorique();
+  if(view === 'stats') loadHistorique().then(renderStats);
+  if(view === 'utilisateurs') loadUsers();
+  if(view === 'demandes') loadDemandes();
+  if(view === 'monprofil') renderMonProfil();
+}
+
+// ---------- Garages ----------
+async function loadGarages(){
+  try{
+    const snap = await db.collection('garages').orderBy('nom').get();
+    garages = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderGarages();
+    populateGarageSelects();
+  }catch(e){ console.error(e); showToast('Erreur de chargement des garages', 'error'); }
+}
+
+function renderGarages(){
+  const tbody = document.getElementById('garagesTableBody');
+  const empty = document.getElementById('garagesEmpty');
+  if(garages.length === 0){
+    tbody.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+  tbody.innerHTML = garages.map(g => {
+    const methode = g.methodeLocalisation || 'vanas';
+    const emplacementInfo = methode === 'vanas'
+      ? `${g.nbVanas || 2} Vanas × ${g.tiroirsParVana || 36} tiroirs`
+      : `<span style="color:var(--text-dim);">Autre méthode (à définir)</span>`;
+    return `
+    <tr class="row-clickable" onclick="goToOutilsGarage('${g.id}')" title="Voir les outils de ce garage">
+      <td>${escapeHtml(g.nom)}</td>
+      <td>${emplacementInfo}</td>
+      <td class="row-actions" style="justify-content:flex-end;" onclick="event.stopPropagation()">
+        ${actionButtonsFor('garage', g.id, g.nom)}
+      </td>
+    </tr>
+  `; }).join('');
+}
+
+function toggleGarageVanasFields(){
+  const methode = document.getElementById('garageMethodeLocalisation').value;
+  document.getElementById('garageVanasFields').style.display = methode === 'vanas' ? 'block' : 'none';
+  document.getElementById('garageAutreNote').style.display = methode === 'vanas' ? 'none' : 'block';
+}
+
+function openGarageModal(id){
+  editingGarageId = id || null;
+  document.getElementById('garageModalError').textContent = '';
+  if(id){
+    const g = garages.find(x => x.id === id);
+    document.getElementById('garageModalTitle').textContent = 'Modifier le garage';
+    document.getElementById('garageNom').value = g.nom;
+    document.getElementById('garageMethodeLocalisation').value = g.methodeLocalisation || 'vanas';
+    document.getElementById('garageNbVanas').value = g.nbVanas || 2;
+    document.getElementById('garageTiroirs').value = g.tiroirsParVana || 36;
+  }else{
+    document.getElementById('garageModalTitle').textContent = 'Ajouter un garage';
+    document.getElementById('garageNom').value = '';
+    document.getElementById('garageMethodeLocalisation').value = 'vanas';
+    document.getElementById('garageNbVanas').value = 2;
+    document.getElementById('garageTiroirs').value = 36;
+  }
+  toggleGarageVanasFields();
+  openModal('garageModal');
+}
+
+async function saveGarage(){
+  const nom = sanitizeInput(document.getElementById('garageNom').value);
+  const methodeLocalisation = document.getElementById('garageMethodeLocalisation').value;
+  const nbVanas = parseInt(document.getElementById('garageNbVanas').value);
+  const tiroirsParVana = parseInt(document.getElementById('garageTiroirs').value);
+  const errEl = document.getElementById('garageModalError');
+  if(!nom){ errEl.textContent = 'Le nom du garage est requis.'; return; }
+  try{
+    if(editingGarageId){
+      await db.collection('garages').doc(editingGarageId).update({ nom, methodeLocalisation, nbVanas, tiroirsParVana });
+      showToast('Garage modifié', 'success');
+    }else{
+      await db.collection('garages').add({ nom, methodeLocalisation, nbVanas, tiroirsParVana, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+      showToast('Garage ajouté', 'success');
+    }
+    closeModal('garageModal');
+    loadGarages();
+  }catch(e){
+    console.error(e);
+    errEl.textContent = "Erreur lors de l'enregistrement.";
+  }
+}
+
+async function deleteGarage(id){
+  const nbMecaniciens = mecaniciens.filter(m => m.garageId === id).length;
+  const nbOutils = outils.filter(o => o.garageId === id).length;
+  if(nbMecaniciens > 0 || nbOutils > 0){
+    showToast(`Impossible de supprimer : ${nbMecaniciens} agent(s) et ${nbOutils} outil(s) sont encore rattachés à ce garage.`, 'error');
+    return;
+  }
+  if(!confirm('Supprimer ce garage ?')) return;
+  try{
+    await db.collection('garages').doc(id).delete();
+    showToast('Garage supprimé', 'success');
+    loadGarages();
+  }catch(e){ console.error(e); showToast('Erreur lors de la suppression', 'error'); }
+}
+
+// ---------- Agents ----------
+async function loadMecaniciens(){
+  try{
+    const snap = await db.collection('mecaniciens').orderBy('nom').get();
+    mecaniciens = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderMecaniciens();
+  }catch(e){ console.error(e); showToast('Erreur de chargement des agents', 'error'); }
+}
+
+function renderMecaniciens(){
+  const tbody = document.getElementById('mecaniciensTableBody');
+  const empty = document.getElementById('mecaniciensEmpty');
+
+  const search = (document.getElementById('mecanicienSearchInput').value || '').toLowerCase().trim();
+  const garageFilter = document.getElementById('mecanicienFilterGarage').value;
+  const fonctionFilter = document.getElementById('mecanicienFilterFonction').value;
+
+  const filtered = mecaniciens.filter(m => {
+    if(garageFilter && m.garageId !== garageFilter) return false;
+    if(fonctionFilter && (m.fonction || '') !== fonctionFilter) return false;
+    if(search){
+      const nomComplet = mecNomComplet(m).toLowerCase();
+      const matricule = (m.matricule || '').toLowerCase();
+      const equipe = (m.equipe || '').toLowerCase();
+      const fonction = (m.fonction || '').toLowerCase();
+      if(!nomComplet.includes(search) && !matricule.includes(search) && !equipe.includes(search) && !fonction.includes(search)) return false;
+    }
+    return true;
+  });
+
+  if(filtered.length === 0){
+    tbody.innerHTML = '';
+    empty.style.display = 'block';
+  } else {
+    empty.style.display = 'none';
+    tbody.innerHTML = filtered.map(m => {
+      const garageNom = (garages.find(g => g.id === m.garageId) || {}).nom || '—';
+      return `
+      <tr class="row-clickable" onclick="goToHistoriqueAgent('${m.id}')" title="Voir l'historique de cet agent">
+        <td>${escapeHtml(mecNomComplet(m))}</td>
+        <td>${escapeHtml(m.matricule)}</td>
+        <td>${escapeHtml(m.fonction || '—')}</td>
+        <td>${escapeHtml(garageNom)}</td>
+        <td>${escapeHtml(m.equipe || '—')}</td>
+        <td class="row-actions" style="justify-content:flex-end;" onclick="event.stopPropagation()">
+          ${actionButtonsFor('mecanicien', m.id, mecNomComplet(m))}
+        </td>
+      </tr>
+    `; }).join('');
+  }
+
+  const histMecSel = document.getElementById('histFilterMecanicien');
+  if(histMecSel){
+    const current = histMecSel.value;
+    histMecSel.innerHTML = '<option value="">Tous les agents</option>' +
+      mecaniciens.map(m => `<option value="${m.id}">${escapeHtml(mecNomComplet(m))}</option>`).join('');
+    histMecSel.value = current;
+  }
+
+  const mecFilterFonctionSel = document.getElementById('mecanicienFilterFonction');
+  if(mecFilterFonctionSel){
+    const current = mecFilterFonctionSel.value;
+    const fonctionsConnues = [...new Set(mecaniciens.map(m => m.fonction).filter(Boolean))].sort();
+    mecFilterFonctionSel.innerHTML = '<option value="">Toutes les fonctions</option>' +
+      fonctionsConnues.map(f => `<option value="${escapeHtml(f)}">${escapeHtml(f)}</option>`).join('');
+    mecFilterFonctionSel.value = current;
+  }
+
+  const mecFilterGarageSel = document.getElementById('mecanicienFilterGarage');
+  if(mecFilterGarageSel){
+    const current = mecFilterGarageSel.value;
+    mecFilterGarageSel.innerHTML = '<option value="">Tous les garages</option>' +
+      garages.map(g => `<option value="${g.id}">${escapeHtml(g.nom)}</option>`).join('');
+    mecFilterGarageSel.value = current;
+  }
+}
+
+function populateGarageSelects(){
+  const sel = document.getElementById('mecanicienGarage');
+  sel.innerHTML = garages.map(g => `<option value="${g.id}">${escapeHtml(g.nom)}</option>`).join('');
+
+  const outilSel = document.getElementById('outilGarage');
+  if(outilSel){
+    outilSel.innerHTML = garages.map(g => `<option value="${g.id}">${escapeHtml(g.nom)}</option>`).join('');
+  }
+  const filterSel = document.getElementById('outilFilterGarage');
+  if(filterSel){
+    const current = filterSel.value;
+    filterSel.innerHTML = '<option value="">Tous les garages</option>' +
+      garages.map(g => `<option value="${g.id}">${escapeHtml(g.nom)}</option>`).join('');
+    filterSel.value = current;
+  }
+
+  const pretGarageSel = document.getElementById('pretGarage');
+  if(pretGarageSel){
+    const current = pretGarageSel.value;
+    pretGarageSel.innerHTML = '<option value="">Choisir un garage</option>' +
+      garages.map(g => `<option value="${g.id}">${escapeHtml(g.nom)}</option>`).join('');
+    pretGarageSel.value = current;
+  }
+  const pretsFilterSel = document.getElementById('pretsFilterGarage');
+  if(pretsFilterSel){
+    const current = pretsFilterSel.value;
+    pretsFilterSel.innerHTML = '<option value="">Tous les garages</option>' +
+      garages.map(g => `<option value="${g.id}">${escapeHtml(g.nom)}</option>`).join('');
+    pretsFilterSel.value = current;
+  }
+  const histFilterSel = document.getElementById('histFilterGarage');
+  if(histFilterSel){
+    const current = histFilterSel.value;
+    histFilterSel.innerHTML = '<option value="">Tous les garages</option>' +
+      garages.map(g => `<option value="${g.id}">${escapeHtml(g.nom)}</option>`).join('');
+    histFilterSel.value = current;
+  }
+  const mecFilterGarageSel = document.getElementById('mecanicienFilterGarage');
+  if(mecFilterGarageSel){
+    const current = mecFilterGarageSel.value;
+    mecFilterGarageSel.innerHTML = '<option value="">Tous les garages</option>' +
+      garages.map(g => `<option value="${g.id}">${escapeHtml(g.nom)}</option>`).join('');
+    mecFilterGarageSel.value = current;
+  }
+}
+
+function openMecanicienModal(id){
+  editingMecanicienId = id || null;
+  document.getElementById('mecanicienModalError').textContent = '';
+  if(garages.length === 0){
+    showToast('Ajoute d\'abord au moins un garage', 'error');
+    return;
+  }
+  if(id){
+    const m = mecaniciens.find(x => x.id === id);
+    document.getElementById('mecanicienModalTitle').textContent = "Modifier l'agent";
+    document.getElementById('mecanicienPrenom').value = m.prenom || '';
+    document.getElementById('mecanicienNom').value = m.nom;
+    document.getElementById('mecanicienMatricule').value = m.matricule;
+    document.getElementById('mecanicienGarage').value = m.garageId;
+    document.getElementById('mecanicienFonction').value = m.fonction || '';
+    document.getElementById('mecanicienEquipe').value = m.equipe || '';
+  }else{
+    document.getElementById('mecanicienModalTitle').textContent = 'Ajouter un agent';
+    document.getElementById('mecanicienPrenom').value = '';
+    document.getElementById('mecanicienNom').value = '';
+    document.getElementById('mecanicienMatricule').value = '';
+    document.getElementById('mecanicienFonction').value = '';
+    document.getElementById('mecanicienEquipe').value = '';
+  }
+  openModal('mecanicienModal');
+}
+
+async function saveMecanicien(){
+  const prenom = toSentenceCase(sanitizeInput(document.getElementById('mecanicienPrenom').value));
+  const nom = toSentenceCase(sanitizeInput(document.getElementById('mecanicienNom').value));
+  const matricule = sanitizeInput(document.getElementById('mecanicienMatricule').value);
+  const garageId = document.getElementById('mecanicienGarage').value;
+  const fonction = toSentenceCase(sanitizeInput(document.getElementById('mecanicienFonction').value));
+  const equipe = sanitizeInput(document.getElementById('mecanicienEquipe').value);
+  const errEl = document.getElementById('mecanicienModalError');
+  if(!nom || !matricule){ errEl.textContent = 'Nom et matricule requis.'; return; }
+  if(!isValidMatricule(matricule)){ errEl.textContent = 'Le matricule doit contenir exactement 5 chiffres.'; return; }
+  try{
+    if(editingMecanicienId){
+      await db.collection('mecaniciens').doc(editingMecanicienId).update({ prenom, nom, matricule, garageId, fonction, equipe });
+      showToast('Agent modifié', 'success');
+    }else{
+      await db.collection('mecaniciens').add({ prenom, nom, matricule, garageId, fonction, equipe, createdAt: firebase.firestore.FieldValue.serverTimestamp() });
+      showToast('Agent ajouté', 'success');
+    }
+    closeModal('mecanicienModal');
+    loadMecaniciens();
+  }catch(e){
+    console.error(e);
+    errEl.textContent = "Erreur lors de l'enregistrement.";
+  }
+}
+
+async function deleteMecanicien(id){
+  const pretEnCours = prets.find(p => p.mecanicienId === id);
+  if(pretEnCours){
+    showToast('Impossible de supprimer : ce agent a un prêt en cours.', 'error');
+    return;
+  }
+  if(!confirm('Supprimer ce agent ?')) return;
+  try{
+    await db.collection('mecaniciens').doc(id).delete();
+    showToast('Agent supprimé', 'success');
+    loadMecaniciens();
+  }catch(e){ console.error(e); showToast('Erreur lors de la suppression', 'error'); }
+}
+
+// ---------- Outils (Catalogue) ----------
+const STATUT_LABELS = {
+  disponible: 'Disponible',
+  emprunte: 'Emprunté',
+  en_retard: 'En retard',
+  hors_service: 'Hors service'
+};
+
+// Calcule la disponibilité réelle d'un outil en tenant compte de sa quantité totale
+// et du nombre d'exemplaires actuellement empruntés (via les prêts en cours chargés).
+function getOutilDisponibilite(outil){
+  const quantite = Math.max(0, parseInt(outil.quantite) !== 0 ? (parseInt(outil.quantite) || 1) : 0);
+  if(outil.statut === 'hors_service' || quantite === 0){
+    return { dispo: 0, quantite, label: 'Hors service', cls: 'hors_service' };
+  }
+  const nbEmpruntes = prets.filter(p => p.outilId === outil.id).length;
+  const dispo = Math.max(0, quantite - nbEmpruntes);
+  if(quantite <= 1){
+    return dispo > 0
+      ? { dispo, quantite, label: 'Disponible', cls: 'disponible' }
+      : { dispo, quantite, label: 'Emprunté', cls: 'emprunte' };
+  }
+  return dispo > 0
+    ? { dispo, quantite, label: `Disponible (${dispo}/${quantite})`, cls: 'disponible' }
+    : { dispo, quantite, label: `Complet (0/${quantite})`, cls: 'emprunte' };
+}
+
+async function loadOutils(){
+  try{
+    const snap = await db.collection('outils').orderBy('nom').get();
+    outils = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    populateOutilCategorieOptions();
+    renderOutils();
+  }catch(e){ console.error(e); showToast('Erreur de chargement des outils', 'error'); }
+}
+
+function populateOutilCategorieOptions(){
+  // Déduplique en ignorant la casse, pour éviter les doublons visuels type
+  // "Pompe à graisse" / "pompe à graisse" (ex: outils enregistrés avant la mise en forme auto).
+  const seen = new Map();
+  outils.forEach(o => {
+    if(!o.categorie) return;
+    const key = o.categorie.toLowerCase();
+    if(!seen.has(key)) seen.set(key, o.categorie);
+  });
+  const categories = [...seen.values()].sort((a,b) => a.localeCompare(b));
+  const datalist = document.getElementById('outilCategorieList');
+  if(datalist) datalist.innerHTML = categories.map(c => `<option value="${escapeHtml(c)}">`).join('');
+  const filterSel = document.getElementById('outilFilterCategorie');
+  if(filterSel){
+    const current = filterSel.value;
+    filterSel.innerHTML = '<option value="">Toutes les catégories</option>' +
+      categories.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join('');
+    filterSel.value = current;
+  }
+}
+
+function renderOutils(){
+  const tbody = document.getElementById('outilsTableBody');
+  const empty = document.getElementById('outilsEmpty');
+  if(!tbody) return;
+
+  const search = (document.getElementById('outilSearchInput').value || '').toLowerCase().trim();
+  const garageFilter = document.getElementById('outilFilterGarage').value;
+  const categorieFilter = document.getElementById('outilFilterCategorie').value;
+
+  let filtered = outils.filter(o => {
+    if(garageFilter && o.garageId !== garageFilter) return false;
+    if(categorieFilter && (o.categorie || '').toLowerCase() !== categorieFilter.toLowerCase()) return false;
+    if(search && !(o.nom||'').toLowerCase().includes(search) && !(o.reference||'').toLowerCase().includes(search)) return false;
+    return true;
+  });
+
+  if(filtered.length === 0){
+    tbody.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+
+  tbody.innerHTML = filtered.map(o => {
+    const garageNom = (garages.find(g => g.id === o.garageId) || {}).nom || '—';
+    const emplacement = (o.vana && o.tiroir) ? `Vanas ${o.vana} - ${o.tiroir}` : '—';
+    const dispoInfo = getOutilDisponibilite(o);
+    const photo = o.photoUrl
+      ? `<img class="thumb" src="${o.photoUrl}">`
+      : `<div class="thumb-placeholder">🔧</div>`;
+    return `
+    <tr class="${dispoInfo.dispo > 0 ? 'row-clickable' : ''}" ${dispoInfo.dispo > 0 ? `onclick="goToNouveauPretOutil('${o.id}')" title="Prêter cet outil"` : ''}>
+      <td>${photo}</td>
+      <td>
+        ${escapeHtml(o.nom)}${o.categorie ? ` <span style="color:var(--text-dim);">— ${escapeHtml(o.categorie)}</span>` : ''}
+        ${o.reference ? `<div style="font-size:11px;color:var(--text-dim);">${escapeHtml(o.reference)}</div>` : ''}
+      </td>
+      <td>${escapeHtml(garageNom)}</td>
+      <td>${emplacement}</td>
+      <td><span class="badge-statut ${dispoInfo.cls}">${dispoInfo.label}</span></td>
+      <td class="row-actions" style="justify-content:flex-end;" onclick="event.stopPropagation()">
+        ${actionButtonsFor('outil', o.id, o.nom)}
+      </td>
+    </tr>
+  `; }).join('');
+}
+
+function populateVanaTiroirSelects(){
+  const garageId = document.getElementById('outilGarage').value;
+  const garage = garages.find(g => g.id === garageId);
+  const methode = garage ? (garage.methodeLocalisation || 'vanas') : 'vanas';
+  const fieldsWrap = document.getElementById('outilVanaTiroirFields');
+  const note = document.getElementById('outilAutreLocalisationNote');
+
+  if(methode !== 'vanas'){
+    fieldsWrap.style.display = 'none';
+    note.style.display = 'block';
+    return;
+  }
+  fieldsWrap.style.display = 'flex';
+  note.style.display = 'none';
+
+  const vanaSel = document.getElementById('outilVana');
+  const tiroirSel = document.getElementById('outilTiroir');
+  const nbVanas = garage ? (garage.nbVanas || 2) : 2;
+  const nbTiroirs = garage ? (garage.tiroirsParVana || 36) : 36;
+
+  const prevVana = vanaSel.value;
+  const prevTiroir = tiroirSel.value;
+
+  vanaSel.innerHTML = '';
+  for(let i=1; i<=nbVanas; i++){
+    vanaSel.innerHTML += `<option value="${i}">Vanas ${i}</option>`;
+  }
+  tiroirSel.innerHTML = '';
+  for(let i=1; i<=nbTiroirs; i++){
+    tiroirSel.innerHTML += `<option value="${i}">Tiroir ${i}</option>`;
+  }
+
+  if(prevVana && prevVana <= nbVanas) vanaSel.value = prevVana;
+  if(prevTiroir && prevTiroir <= nbTiroirs) tiroirSel.value = prevTiroir;
+}
+
+async function handleOutilPhotoSelected(event){
+  const file = event.target.files[0];
+  if(!file) return;
+  const zone = document.getElementById('outilPhotoZone');
+  const hint = document.getElementById('outilPhotoHint');
+  const preview = document.getElementById('outilPhotoPreview');
+
+  zone.classList.add('uploading');
+  hint.textContent = 'Envoi en cours...';
+
+  try{
+    const formData = new FormData();
+    formData.append('file', file);
+    formData.append('upload_preset', CLOUDINARY_UPLOAD_PRESET);
+
+    const res = await fetch(`https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`, {
+      method: 'POST',
+      body: formData
+    });
+    const data = await res.json();
+    if(!data.secure_url) throw new Error('Upload échoué');
+
+    outilPendingPhotoUrl = data.secure_url;
+    preview.src = data.secure_url;
+    preview.style.display = 'block';
+    hint.textContent = 'Cliquer pour changer la photo';
+  }catch(e){
+    console.error(e);
+    hint.textContent = 'Erreur d\'envoi — cliquer pour réessayer';
+    showToast('Erreur lors de l\'envoi de la photo', 'error');
+  }finally{
+    zone.classList.remove('uploading');
+  }
+}
+
+function openOutilModal(id){
+  editingOutilId = id || null;
+  outilPendingPhotoUrl = null;
+  document.getElementById('outilModalError').textContent = '';
+  document.getElementById('outilPhotoPreview').style.display = 'none';
+  document.getElementById('outilPhotoInput').value = '';
+
+  if(garages.length === 0){
+    showToast('Ajoute d\'abord au moins un garage', 'error');
+    return;
+  }
+
+  if(id){
+    const o = outils.find(x => x.id === id);
+    document.getElementById('outilModalTitle').textContent = 'Modifier l\'outil';
+    document.getElementById('outilNom').value = o.nom;
+    document.getElementById('outilCategorie').value = o.categorie || '';
+    document.getElementById('outilReference').value = o.reference || '';
+    document.getElementById('outilCodeBarre').value = o.codeBarre || '';
+    document.getElementById('outilGarage').value = o.garageId;
+    document.getElementById('outilQuantite').value = o.quantite || 1;
+    document.getElementById('outilStatut').value = (o.statut === 'hors_service') ? 'hors_service' : 'disponible';
+    populateVanaTiroirSelects();
+    document.getElementById('outilVana').value = o.vana;
+    document.getElementById('outilTiroir').value = o.tiroir;
+    if(o.photoUrl){
+      document.getElementById('outilPhotoPreview').src = o.photoUrl;
+      document.getElementById('outilPhotoPreview').style.display = 'block';
+      document.getElementById('outilPhotoHint').textContent = 'Cliquer pour changer la photo';
+      outilPendingPhotoUrl = o.photoUrl;
+    }else{
+      document.getElementById('outilPhotoHint').textContent = 'Cliquer pour ajouter une photo';
+    }
+  }else{
+    document.getElementById('outilModalTitle').textContent = 'Ajouter un outil';
+    document.getElementById('outilNom').value = '';
+    document.getElementById('outilCategorie').value = '';
+    document.getElementById('outilReference').value = '';
+    document.getElementById('outilCodeBarre').value = '';
+    document.getElementById('outilQuantite').value = 1;
+    document.getElementById('outilStatut').value = 'disponible';
+    document.getElementById('outilPhotoHint').textContent = 'Cliquer pour ajouter une photo';
+    populateVanaTiroirSelects();
+  }
+  openModal('outilModal');
+}
+
+async function saveOutil(){
+  const nom = toSentenceCase(sanitizeInput(document.getElementById('outilNom').value));
+  const categorie = toSentenceCase(sanitizeInput(document.getElementById('outilCategorie').value));
+  const reference = sanitizeInput(document.getElementById('outilReference').value);
+  const codeBarre = sanitizeInput(document.getElementById('outilCodeBarre').value);
+  const garageId = document.getElementById('outilGarage').value;
+  const garageChoisi = garages.find(g => g.id === garageId);
+  const utiliseVanas = garageChoisi && (garageChoisi.methodeLocalisation || 'vanas') === 'vanas';
+  const vana = utiliseVanas ? parseInt(document.getElementById('outilVana').value) : null;
+  const tiroir = utiliseVanas ? parseInt(document.getElementById('outilTiroir').value) : null;
+  const statut = document.getElementById('outilStatut').value;
+  let quantite = parseInt(document.getElementById('outilQuantite').value);
+  const errEl = document.getElementById('outilModalError');
+
+  if(!nom){ errEl.textContent = 'Le nom de l\'outil est requis.'; return; }
+  if(!garageId){ errEl.textContent = 'Le garage est requis.'; return; }
+  if(!quantite || quantite < 1) quantite = 1;
+  if(codeBarre){
+    const conflict = outils.find(o => o.codeBarre === codeBarre && o.id !== editingOutilId);
+    if(conflict){ errEl.textContent = `Ce code est déjà utilisé par "${conflict.nom}".`; return; }
+  }
+
+  // On empêche de fixer une quantité inférieure au nombre d'exemplaires actuellement empruntés,
+  // pour ne pas créer une disponibilité négative incohérente.
+  if(editingOutilId){
+    const nbEmpruntesActuels = prets.filter(p => p.outilId === editingOutilId).length;
+    if(quantite < nbEmpruntesActuels){
+      errEl.textContent = `Impossible : ${nbEmpruntesActuels} exemplaire(s) sont actuellement empruntés, la quantité ne peut pas être inférieure.`;
+      return;
+    }
+  }
+
+  const payload = {
+    nom, categorie, reference, codeBarre, garageId, vana, tiroir, statut, quantite,
+    photoUrl: outilPendingPhotoUrl || null
+  };
+
+  try{
+    if(editingOutilId){
+      await db.collection('outils').doc(editingOutilId).update(payload);
+      showToast('Outil modifié', 'success');
+    }else{
+      payload.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+      await db.collection('outils').add(payload);
+      showToast('Outil ajouté', 'success');
+    }
+    closeModal('outilModal');
+    loadOutils();
+  }catch(e){
+    console.error(e);
+    errEl.textContent = "Erreur lors de l'enregistrement.";
+  }
+}
+
+async function deleteOutil(id){
+  const nbEmpruntes = prets.filter(p => p.outilId === id).length;
+  if(nbEmpruntes > 0){
+    showToast(`Impossible de supprimer : ${nbEmpruntes} exemplaire(s) de cet outil sont actuellement emprunté(s).`, 'error');
+    return;
+  }
+  if(!confirm('Supprimer cet outil ?')) return;
+  try{
+    await db.collection('outils').doc(id).delete();
+    showToast('Outil supprimé', 'success');
+    loadOutils();
+  }catch(e){ console.error(e); showToast('Erreur lors de la suppression', 'error'); }
+}
+
+// ---------- Dashboard ----------
+function renderDashboard(){
+  const banner = document.getElementById('dashboardShiftBanner');
+  if(!banner) return;
+  const shift = getCurrentShift();
+  const end = getShiftEndDate();
+  banner.innerHTML = `Shift en cours : <strong>${shift.label}</strong> — fin du shift à <strong>${formatHeure(end)}</strong>`;
+
+  const etats = prets.map(p => computePretEtat(p));
+  document.getElementById('statTotalOutils').textContent = outils.length;
+  document.getElementById('statEmpruntes').textContent = prets.length;
+  document.getElementById('statBientotRetard').textContent = etats.filter(e => e === 'bientot_retard').length;
+  const nbEnRetard = etats.filter(e => e === 'en_retard').length;
+  document.getElementById('statEnRetard').textContent = nbEnRetard;
+
+  const badge = document.getElementById('navRetardBadge');
+  if(badge){
+    if(nbEnRetard > 0){ badge.textContent = nbEnRetard; badge.style.display = 'inline-block'; }
+    else{ badge.style.display = 'none'; }
+  }
+
+  // Table des prêts les plus urgents
+  const tbody = document.getElementById('dashboardAlertsBody');
+  const empty = document.getElementById('dashboardAlertsEmpty');
+  const sorted = prets.slice().sort((a,b) => {
+    const da = a.dateRetourPrevue.toDate ? a.dateRetourPrevue.toDate() : new Date(a.dateRetourPrevue);
+    const db_ = b.dateRetourPrevue.toDate ? b.dateRetourPrevue.toDate() : new Date(b.dateRetourPrevue);
+    return da - db_;
+  }).slice(0, 8);
+
+  if(sorted.length === 0){
+    tbody.innerHTML = '';
+    empty.style.display = 'block';
+  } else {
+    empty.style.display = 'none';
+    const etatLabels = { emprunte:'Emprunté', bientot_retard:'Retour proche', en_retard:'En retard' };
+    tbody.innerHTML = sorted.map(p => {
+      const outil = outils.find(o => o.id === p.outilId);
+      const mec = mecaniciens.find(m => m.id === p.mecanicienId);
+      const garageNom = (garages.find(g => g.id === p.garageId) || {}).nom || p.garageNom || '—';
+      const due = p.dateRetourPrevue.toDate ? p.dateRetourPrevue.toDate() : new Date(p.dateRetourPrevue);
+      const etat = computePretEtat(p);
+      const emplacement = (outil && outil.vana && outil.tiroir) ? `Vanas ${outil.vana} - ${outil.tiroir}` : '—';
+      const outilNom = outil ? outil.nom : (p.outilNom || '—');
+      const mecNom = mec ? mecNomComplet(mec) : (p.mecanicienNom || '—');
+      const photo = (outil && outil.photoUrl)
+        ? `<img class="thumb" src="${outil.photoUrl}">`
+        : `<div class="thumb-placeholder">🔧</div>`;
+      return `
+      <tr class="row-${etat} row-clickable" onclick="goToRetour('${p.id}')" title="Cliquer pour enregistrer le retour">
+        <td>${photo}</td>
+        <td>${escapeHtml(outilNom)}</td>
+        <td>${emplacement}</td>
+        <td>${escapeHtml(mecNom)}</td>
+        <td>${escapeHtml(garageNom)}</td>
+        <td>${formatHeure(due)}</td>
+        <td><span class="badge-statut ${etat}">${etatLabels[etat]}</span></td>
+      </tr>
+    `; }).join('');
+  }
+
+  // Répartition des retards par garage
+  const breakdown = document.getElementById('dashboardGarageBreakdown');
+  const breakdownEmpty = document.getElementById('dashboardGarageBreakdownEmpty');
+  if(garages.length === 0){
+    breakdown.innerHTML = '';
+    breakdownEmpty.style.display = 'block';
+  } else {
+    breakdownEmpty.style.display = 'none';
+    breakdown.innerHTML = garages.map(g => {
+      const count = prets.filter(p => p.garageId === g.id && computePretEtat(p) === 'en_retard').length;
+      return `
+      <div class="garage-pill row-clickable" onclick="goToPretsEnCoursGarage('${g.id}')" title="Voir les prêts en cours de ce garage">
+        <span class="gp-name">${escapeHtml(g.nom)}</span>
+        <span class="gp-count ${count > 0 ? 'some' : 'zero'}">${count} en retard</span>
+      </div>
+    `; }).join('');
+  }
+}
+
+// Depuis le Dashboard : clic sur un prêt en cours -> ouvre directement le retour
+function goToRetour(pretId){
+  switchView('prets');
+  switchPretSubtab('cours');
+  openRetourModal(pretId);
+}
+
+// Depuis le Dashboard : clic sur une pastille garage -> prêts en cours filtrés sur ce garage
+function goToPretsEnCoursGarage(garageId){
+  switchView('prets');
+  switchPretSubtab('cours');
+  const sel = document.getElementById('pretsFilterGarage');
+  if(sel){ sel.value = garageId; renderPretsEnCours(); }
+}
+
+// Depuis Agents/Statistiques : clic sur un agent -> son historique perso
+function goToHistoriqueAgent(agentId){
+  switchView('historique');
+  loadHistorique().then(() => {
+    const sel = document.getElementById('histFilterMecanicien');
+    if(sel){ sel.value = agentId; renderHistorique(); }
+  });
+}
+
+// Depuis Garages : clic sur un garage -> catalogue outils filtré sur ce garage
+function goToOutilsGarage(garageId){
+  switchView('outils');
+  const sel = document.getElementById('outilFilterGarage');
+  if(sel){ sel.value = garageId; renderOutils(); }
+}
+
+// Depuis Statistiques : clic sur un outil -> ouvre sa fiche dans le catalogue
+function goToOutilFiche(outilId){
+  if(!outils.find(o => o.id === outilId)){ showToast('Cet outil n\'existe plus.', 'error'); return; }
+  switchView('outils');
+  openOutilModal(outilId);
+}
+
+// Depuis Demandes : clic sur l'élément concerné -> ouvre sa fiche directement
+function goToElementDemande(type, id){
+  if(type === 'garage'){
+    if(!garages.find(g => g.id === id)){ showToast('Ce garage n\'existe plus.', 'error'); return; }
+    switchView('garages'); openGarageModal(id);
+  }else if(type === 'mecanicien'){
+    if(!mecaniciens.find(m => m.id === id)){ showToast('Cet agent n\'existe plus.', 'error'); return; }
+    switchView('mecaniciens'); openMecanicienModal(id);
+  }else if(type === 'outil'){
+    if(!outils.find(o => o.id === id)){ showToast('Cet outil n\'existe plus.', 'error'); return; }
+    switchView('outils'); openOutilModal(id);
+  }
+}
+
+// Depuis Catalogue outils : clic sur un outil disponible -> Nouveau prêt pré-rempli
+function goToNouveauPretOutil(outilId){
+  const outil = outils.find(o => o.id === outilId);
+  if(!outil) return;
+  switchView('prets');
+  switchPretSubtab('nouveau');
+  document.getElementById('pretGarage').value = outil.garageId;
+  onPretGarageChange();
+  document.getElementById('pretOutil').value = outilId;
+  updatePretOutilPreview();
+}
+
+// ---------- Prêts / Retours ----------
+function switchPretSubtab(tab){
+  document.querySelectorAll('.pret-subtab').forEach(b => b.classList.toggle('active', b.dataset.subtab === tab));
+  document.getElementById('pretSubtab-nouveau').style.display = tab === 'nouveau' ? 'block' : 'none';
+  document.getElementById('pretSubtab-cours').style.display = tab === 'cours' ? 'block' : 'none';
+  if(tab === 'nouveau') updateShiftBanner();
+  if(tab === 'cours') renderPretsEnCours();
+}
+
+function updateShiftBanner(){
+  const banner = document.getElementById('shiftBanner');
+  if(!banner) return;
+  const shift = getCurrentShift();
+  const end = getShiftEndDate();
+  banner.innerHTML = `Shift en cours : <strong>${shift.label}</strong> — retour prévu avant <strong>${formatHeure(end)}</strong>`;
+}
+
+function onPretGarageChange(){
+  const garageId = document.getElementById('pretGarage').value;
+  const outilSel = document.getElementById('pretOutil');
+  const outilSearch = document.getElementById('pretOutilSearch');
+  const mecSel = document.getElementById('pretMecanicien');
+  const mecSearch = document.getElementById('pretMecanicienSearch');
+  mecSearch.value = '';
+  outilSearch.value = '';
+
+  if(!garageId){
+    outilSel.innerHTML = '<option value="">— Choisir d\'abord un garage —</option>';
+    mecSel.innerHTML = '<option value="">— Choisir d\'abord un garage —</option>';
+    currentGarageMecaniciens = [];
+    currentGarageOutilsDispo = [];
+    updatePretOutilPreview();
+    return;
+  }
+
+  currentGarageOutilsDispo = outils
+    .filter(o => o.garageId === garageId)
+    .map(o => ({ outil: o, dispo: getOutilDisponibilite(o) }))
+    .filter(x => x.dispo.dispo > 0);
+  renderPretOutilOptions(currentGarageOutilsDispo);
+  updatePretOutilPreview();
+
+  currentGarageMecaniciens = mecaniciens.filter(m => m.garageId === garageId);
+  renderPretMecanicienOptions(currentGarageMecaniciens);
+}
+
+function renderPretOutilOptions(liste){
+  const outilSel = document.getElementById('pretOutil');
+  outilSel.innerHTML = liste.length
+    ? liste.map(x => {
+        const o = x.outil;
+        const compteur = x.dispo.quantite > 1 ? ` — ${x.dispo.dispo} disponible(s)` : '';
+        return `<option value="${o.id}">${escapeHtml(o.nom)}${o.categorie ? ' (' + escapeHtml(o.categorie) + ')' : ''}${o.reference ? ' — ' + escapeHtml(o.reference) : ''}${compteur}</option>`;
+      }).join('')
+    : '<option value="">Aucun outil disponible dans ce garage</option>';
+  updatePretOutilPreview();
+}
+
+// Affiche un petit aperçu (photo + nom) de l'outil actuellement sélectionné dans
+// "Nouveau prêt", pour confirmer visuellement le bon outil avant d'enregistrer le prêt.
+function updatePretOutilPreview(){
+  const outilId = document.getElementById('pretOutil').value;
+  const zone = document.getElementById('pretOutilPreviewZone');
+  const img = document.getElementById('pretOutilPreviewImg');
+  const placeholder = document.getElementById('pretOutilPreviewPlaceholder');
+  const text = document.getElementById('pretOutilPreviewText');
+  const qtyZone = document.getElementById('pretQuantiteZone');
+  const qtyInput = document.getElementById('pretQuantite');
+  const qtyHint = document.getElementById('pretQuantiteHint');
+
+  if(!outilId){ zone.style.display = 'none'; qtyZone.style.display = 'none'; return; }
+  const outil = outils.find(o => o.id === outilId);
+  if(!outil){ zone.style.display = 'none'; qtyZone.style.display = 'none'; return; }
+
+  zone.style.display = 'flex';
+  if(outil.photoUrl){
+    img.src = outil.photoUrl;
+    img.style.display = 'block';
+    placeholder.style.display = 'none';
+  }else{
+    img.style.display = 'none';
+    placeholder.style.display = 'flex';
+  }
+  text.textContent = outil.nom + (outil.reference ? ` — ${outil.reference}` : '');
+
+  // Champ quantité : n'a d'intérêt que si plusieurs exemplaires de cet outil
+  // sont disponibles en même temps (ex: 2 clés à fourches identiques). Pour
+  // un outil unique, le champ reste caché — le prêt classique à 1 exemplaire.
+  const dispo = getOutilDisponibilite(outil).dispo;
+  if(dispo > 1){
+    qtyZone.style.display = 'block';
+    qtyInput.max = dispo;
+    if(!qtyInput.value || parseInt(qtyInput.value) > dispo) qtyInput.value = 1;
+    qtyHint.textContent = `sur ${dispo} disponible(s)`;
+  }else{
+    qtyZone.style.display = 'none';
+    qtyInput.value = 1;
+  }
+}
+
+// Empêche de saisir une quantité invalide (0, négative, ou au-delà du stock
+// disponible affiché au moment de la sélection) directement dans le champ.
+function clampPretQuantite(){
+  const outilId = document.getElementById('pretOutil').value;
+  const outil = outils.find(o => o.id === outilId);
+  const qtyInput = document.getElementById('pretQuantite');
+  let val = parseInt(qtyInput.value) || 1;
+  const maxDispo = outil ? getOutilDisponibilite(outil).dispo : 1;
+  if(val < 1) val = 1;
+  if(val > maxDispo) val = maxDispo;
+  qtyInput.value = val;
+}
+
+function filterPretOutilOptions(){
+  const search = (document.getElementById('pretOutilSearch').value || '').toLowerCase().trim();
+  if(!search){
+    renderPretOutilOptions(currentGarageOutilsDispo);
+    return;
+  }
+  const filtered = currentGarageOutilsDispo.filter(x => {
+    const o = x.outil;
+    return (o.nom || '').toLowerCase().includes(search)
+      || (o.categorie || '').toLowerCase().includes(search)
+      || (o.reference || '').toLowerCase().includes(search);
+  });
+  renderPretOutilOptions(filtered);
+}
+
+function renderPretMecanicienOptions(liste){
+  const mecSel = document.getElementById('pretMecanicien');
+  mecSel.innerHTML = liste.length
+    ? liste.map(m => `<option value="${m.id}">${escapeHtml(mecNomComplet(m))} (${escapeHtml(m.matricule)})${m.fonction ? ' — ' + escapeHtml(m.fonction) : ''}</option>`).join('')
+    : '<option value="">Aucun agent trouvé</option>';
+}
+
+function filterPretMecanicienOptions(){
+  const search = (document.getElementById('pretMecanicienSearch').value || '').toLowerCase().trim();
+  if(!search){
+    renderPretMecanicienOptions(currentGarageMecaniciens);
+    return;
+  }
+  const filtered = currentGarageMecaniciens.filter(m =>
+    mecNomComplet(m).toLowerCase().includes(search)
+    || (m.matricule || '').includes(search)
+    || (m.fonction || '').toLowerCase().includes(search)
+  );
+  renderPretMecanicienOptions(filtered);
+}
+
+async function submitPret(){
+  const garageId = document.getElementById('pretGarage').value;
+  const outilId = document.getElementById('pretOutil').value;
+  const mecanicienId = document.getElementById('pretMecanicien').value;
+  const errEl = document.getElementById('pretFormError');
+  const btn = document.getElementById('submitPretBtn');
+  errEl.textContent = '';
+
+  if(!garageId){ errEl.textContent = 'Choisis un garage.'; return; }
+  if(!outilId){ errEl.textContent = 'Choisis un outil disponible.'; return; }
+  if(!mecanicienId){ errEl.textContent = 'Choisis un agent.'; return; }
+
+  // Nombre d'exemplaires du même outil à emprunter en une fois (ex: 2 clés à
+  // fourches identiques) — le champ n'est affiché que si plusieurs exemplaires
+  // sont disponibles ; sinon on reste sur le comportement classique (1 prêt).
+  const qtyZoneVisible = document.getElementById('pretQuantiteZone').style.display !== 'none';
+  let quantite = qtyZoneVisible ? (parseInt(document.getElementById('pretQuantite').value) || 1) : 1;
+  if(quantite < 1) quantite = 1;
+
+  btn.disabled = true;
+  btn.textContent = 'Enregistrement...';
+
+  const now = new Date();
+  const shift = getCurrentShift(now);
+  const shiftEnd = getShiftEndDate(now, shift);
+  const dateRetourPrevue = new Date(shiftEnd.getTime() - 30*60*1000); // 30 min avant la fin du shift
+
+  try{
+    const outilDoc = outils.find(o => o.id === outilId);
+    const mecDoc = mecaniciens.find(m => m.id === mecanicienId);
+    const garageDoc = garages.find(g => g.id === garageId);
+
+    // Vérification de sécurité au moment de l'envoi (au cas où la disponibilité aurait changé
+    // entre-temps, ex. un autre magasinier vient d'emprunter le dernier exemplaire).
+    const dispoActuelle = outilDoc ? getOutilDisponibilite(outilDoc).dispo : 0;
+    if(!outilDoc || dispoActuelle <= 0){
+      errEl.textContent = "Cet outil n'est plus disponible — actualise la liste.";
+      btn.disabled = false;
+      btn.textContent = 'Enregistrer le prêt';
+      return;
+    }
+    if(quantite > dispoActuelle){
+      errEl.textContent = `Seulement ${dispoActuelle} exemplaire(s) disponible(s) — actualise la liste.`;
+      btn.disabled = false;
+      btn.textContent = 'Enregistrer le prêt';
+      return;
+    }
+
+    // Un prêt = un exemplaire (comme partout ailleurs dans l'appli, notamment
+    // pour le calcul de disponibilité et le retour individuel de chaque
+    // outil) — emprunter plusieurs exemplaires du même modèle crée donc
+    // plusieurs documents identiques d'un coup plutôt qu'un seul avec un
+    // champ "quantité", pour ne rien casser du reste du système.
+    const batch = db.batch();
+    for(let i = 0; i < quantite; i++){
+      const ref = db.collection('prets').doc();
+      batch.set(ref, {
+        outilId, mecanicienId, garageId,
+        outilNom: outilDoc ? outilDoc.nom : '',
+        mecanicienNom: mecDoc ? mecNomComplet(mecDoc) : '',
+        mecanicienMatricule: mecDoc ? mecDoc.matricule : '',
+        garageNom: garageDoc ? garageDoc.nom : '',
+        magasinierId: currentUser.id,
+        magasinierNom: currentUser.nom,
+        shiftId: shift.id,
+        shiftLabel: shift.label,
+        dateDebut: firebase.firestore.Timestamp.fromDate(now),
+        dateRetourPrevue: firebase.firestore.Timestamp.fromDate(dateRetourPrevue),
+        dateRetourReelle: null,
+        statut: 'emprunte',
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    }
+    await batch.commit();
+    showToast(quantite > 1 ? `${quantite} prêts enregistrés` : 'Prêt enregistré', 'success');
+
+    document.getElementById('pretGarage').value = '';
+    document.getElementById('pretQuantite').value = 1;
+    onPretGarageChange();
+    await Promise.all([loadOutils(), loadPrets()]);
+  }catch(e){
+    console.error(e);
+    errEl.textContent = "Erreur lors de l'enregistrement du prêt.";
+  }finally{
+    btn.disabled = false;
+    btn.textContent = 'Enregistrer le prêt';
+  }
+}
+
+async function loadPrets(){
+  try{
+    const snap = await db.collection('prets').where('statut','==','emprunte').get();
+    prets = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderPretsEnCours();
+    renderDashboard();
+    renderOutils();
+  }catch(e){ console.error(e); showToast('Erreur de chargement des prêts', 'error'); }
+}
+
+function renderPretsEnCours(){
+  const tbody = document.getElementById('pretsEnCoursBody');
+  const empty = document.getElementById('pretsEnCoursEmpty');
+  if(!tbody) return;
+
+  const garageFilter = document.getElementById('pretsFilterGarage').value;
+  let filtered = prets.filter(p => !garageFilter || p.garageId === garageFilter);
+  // tri : les plus urgents en premier
+  filtered = filtered.slice().sort((a,b) => {
+    const da = a.dateRetourPrevue.toDate ? a.dateRetourPrevue.toDate() : new Date(a.dateRetourPrevue);
+    const db_ = b.dateRetourPrevue.toDate ? b.dateRetourPrevue.toDate() : new Date(b.dateRetourPrevue);
+    return da - db_;
+  });
+
+  if(filtered.length === 0){
+    tbody.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+
+  const etatLabels = { emprunte:'Emprunté', bientot_retard:'Retour proche', en_retard:'En retard' };
+
+  tbody.innerHTML = filtered.map(p => {
+    const outil = outils.find(o => o.id === p.outilId);
+    const mec = mecaniciens.find(m => m.id === p.mecanicienId);
+    const garageNom = (garages.find(g => g.id === p.garageId) || {}).nom || p.garageNom || '—';
+    const due = p.dateRetourPrevue.toDate ? p.dateRetourPrevue.toDate() : new Date(p.dateRetourPrevue);
+    const etat = computePretEtat(p);
+    const emplacement = (outil && outil.vana && outil.tiroir) ? `Vanas ${outil.vana} - ${outil.tiroir}` : '—';
+    const outilNom = outil ? outil.nom : (p.outilNom || '—');
+    const mecNom = mec ? mecNomComplet(mec) : (p.mecanicienNom || '—');
+    const photo = (outil && outil.photoUrl)
+      ? `<img class="thumb" src="${outil.photoUrl}">`
+      : `<div class="thumb-placeholder">🔧</div>`;
+    return `
+    <tr class="row-${etat}">
+      <td>${photo}</td>
+      <td>${escapeHtml(outilNom)}</td>
+      <td>${emplacement}</td>
+      <td>${escapeHtml(mecNom)}</td>
+      <td>${escapeHtml(garageNom)}</td>
+      <td>${escapeHtml(p.shiftLabel || '—')}</td>
+      <td>${formatHeure(due)}</td>
+      <td><span class="badge-statut ${etat}">${etatLabels[etat]}</span></td>
+      <td class="row-actions" style="justify-content:flex-end;">
+        <button class="btn-primary" style="width:auto; margin-top:0;" onclick="openRetourModal('${p.id}')">Marquer retourné</button>
+      </td>
+    </tr>
+  `; }).join('');
+}
+
+function openRetourModal(pretId){
+  retourPretIdEnCours = pretId;
+  const pret = prets.find(p => p.id === pretId);
+  if(!pret) return;
+  const outil = outils.find(o => o.id === pret.outilId);
+  const mec = mecaniciens.find(m => m.id === pret.mecanicienId);
+  const garage = garages.find(g => g.id === pret.garageId);
+
+  document.getElementById('retourOutilInfo').textContent =
+    `${outil ? outil.nom : '—'} — emprunté par ${mec ? mecNomComplet(mec) : '—'}`;
+  document.getElementById('retourEtat').value = 'bon_etat';
+  document.getElementById('retourModalError').textContent = '';
+
+  const methode = garage ? (garage.methodeLocalisation || 'vanas') : 'vanas';
+  const fieldsWrap = document.getElementById('retourEmplacementFields');
+  const note = document.getElementById('retourAutreLocalisationNote');
+
+  if(methode !== 'vanas'){
+    fieldsWrap.style.display = 'none';
+    note.style.display = 'block';
+    openModal('retourModal');
+    return;
+  }
+  fieldsWrap.style.display = 'block';
+  note.style.display = 'none';
+
+  const vanaSel = document.getElementById('retourVana');
+  const tiroirSel = document.getElementById('retourTiroir');
+  const nbVanas = garage ? (garage.nbVanas || 2) : 2;
+  const nbTiroirs = garage ? (garage.tiroirsParVana || 36) : 36;
+  vanaSel.innerHTML = '';
+  for(let i=1; i<=nbVanas; i++) vanaSel.innerHTML += `<option value="${i}">Vanas ${i}</option>`;
+  tiroirSel.innerHTML = '';
+  for(let i=1; i<=nbTiroirs; i++) tiroirSel.innerHTML += `<option value="${i}">Tiroir ${i}</option>`;
+  if(outil){
+    if(outil.vana) vanaSel.value = outil.vana;
+    if(outil.tiroir) tiroirSel.value = outil.tiroir;
+  }
+
+  openModal('retourModal');
+}
+
+async function confirmRetour(){
+  const pret = prets.find(p => p.id === retourPretIdEnCours);
+  if(!pret) return;
+  const garage = garages.find(g => g.id === pret.garageId);
+  const utiliseVanas = garage && (garage.methodeLocalisation || 'vanas') === 'vanas';
+  const etat = document.getElementById('retourEtat').value;
+  const vana = utiliseVanas ? parseInt(document.getElementById('retourVana').value) : null;
+  const tiroir = utiliseVanas ? parseInt(document.getElementById('retourTiroir').value) : null;
+  const errEl = document.getElementById('retourModalError');
+  const btn = document.getElementById('confirmRetourBtn');
+
+  btn.disabled = true;
+  btn.textContent = 'Enregistrement...';
+  try{
+    await db.collection('prets').doc(pret.id).update({
+      statut: 'retourne',
+      dateRetourReelle: firebase.firestore.FieldValue.serverTimestamp(),
+      etatRetour: etat
+    });
+
+    const outilUpdate = {};
+    if(utiliseVanas){ outilUpdate.vana = vana; outilUpdate.tiroir = tiroir; }
+    if(etat === 'endommage'){
+      // Un exemplaire endommagé est retiré du pool disponible (quantité -1) plutôt que de
+      // rendre tout l'outil indisponible — les autres exemplaires identiques restent empruntables.
+      const outilDoc = outils.find(o => o.id === pret.outilId);
+      const quantiteActuelle = Math.max(1, parseInt(outilDoc && outilDoc.quantite) || 1);
+      outilUpdate.quantite = Math.max(0, quantiteActuelle - 1);
+    }
+    if(Object.keys(outilUpdate).length > 0){
+      await db.collection('outils').doc(pret.outilId).update(outilUpdate);
+    }
+
+    showToast('Retour enregistré', 'success');
+    closeModal('retourModal');
+    await Promise.all([loadOutils(), loadPrets()]);
+  }catch(e){
+    console.error(e);
+    errEl.textContent = "Erreur lors de l'enregistrement du retour.";
+  }finally{
+    btn.disabled = false;
+    btn.textContent = 'Confirmer le retour';
+  }
+}
+
+// ---------- Historique ----------
+let allPrets = [];
+
+let historiqueDernierDoc = null;
+let historiqueToutCharge = false;
+let historiqueInitialise = false;
+
+async function loadHistorique(force){
+  if(historiqueInitialise && !force){ renderHistorique(); return; }
+  try{
+    const snap = await db.collection('prets').orderBy('dateDebut','desc').limit(300).get();
+    allPrets = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    historiqueDernierDoc = snap.docs.length > 0 ? snap.docs[snap.docs.length - 1] : null;
+    historiqueToutCharge = snap.docs.length < 300;
+    historiqueInitialise = true;
+    renderHistorique();
+  }catch(e){ console.error(e); showToast('Erreur de chargement de l\'historique', 'error'); }
+}
+
+async function chargerPlusHistorique(){
+  if(!historiqueDernierDoc || historiqueToutCharge) return;
+  const btn = document.getElementById('histLoadMoreBtn');
+  if(btn){ btn.disabled = true; btn.textContent = 'Chargement...'; }
+  try{
+    const snap = await db.collection('prets').orderBy('dateDebut','desc').startAfter(historiqueDernierDoc).limit(300).get();
+    const nouveaux = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    allPrets = allPrets.concat(nouveaux);
+    historiqueDernierDoc = snap.docs.length > 0 ? snap.docs[snap.docs.length - 1] : historiqueDernierDoc;
+    historiqueToutCharge = snap.docs.length < 300;
+    renderHistorique();
+  }catch(e){ console.error(e); showToast('Erreur de chargement', 'error'); }
+  finally{
+    if(btn){ btn.disabled = false; btn.textContent = 'Charger 300 prêts de plus'; }
+  }
+}
+
+function getFilteredHistorique(){
+  const search = (document.getElementById('histSearchInput').value || '').toLowerCase().trim();
+  const garageFilter = document.getElementById('histFilterGarage').value;
+  const mecanicienFilter = document.getElementById('histFilterMecanicien').value;
+  const statutFilter = document.getElementById('histFilterStatut').value;
+
+  return allPrets.filter(p => {
+    if(garageFilter && p.garageId !== garageFilter) return false;
+    if(mecanicienFilter && p.mecanicienId !== mecanicienFilter) return false;
+    if(statutFilter === 'en_cours' && p.statut !== 'emprunte') return false;
+    if(statutFilter === 'retourne' && p.statut !== 'retourne') return false;
+    if(search){
+      const outilNom = (p.outilNom || '').toLowerCase();
+      const mecNom = (p.mecanicienNom || '').toLowerCase();
+      if(!outilNom.includes(search) && !mecNom.includes(search)) return false;
+    }
+    return true;
+  });
+}
+
+function renderHistorique(){
+  const tbody = document.getElementById('histTableBody');
+  const empty = document.getElementById('histEmpty');
+  if(!tbody) return;
+
+  const loadMoreBtn = document.getElementById('histLoadMoreBtn');
+  if(loadMoreBtn) loadMoreBtn.style.display = historiqueToutCharge ? 'none' : 'inline-block';
+
+  let filtered = getFilteredHistorique();
+
+  if(filtered.length === 0){
+    tbody.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+
+  const etatLabels = { bon_etat: 'Bon état', endommage: 'Endommagé' };
+
+  tbody.innerHTML = filtered.map(p => {
+    const debut = p.dateDebut && p.dateDebut.toDate ? p.dateDebut.toDate() : (p.dateDebut ? new Date(p.dateDebut) : null);
+    const prevue = p.dateRetourPrevue && p.dateRetourPrevue.toDate ? p.dateRetourPrevue.toDate() : (p.dateRetourPrevue ? new Date(p.dateRetourPrevue) : null);
+    const reelle = p.dateRetourReelle && p.dateRetourReelle.toDate ? p.dateRetourReelle.toDate() : (p.dateRetourReelle ? new Date(p.dateRetourReelle) : null);
+    const enCours = p.statut !== 'retourne';
+    const statutEtat = enCours ? computePretEtat(p) : 'retourne';
+    const statutLabels = { emprunte:'Emprunté', bientot_retard:'Retour proche', en_retard:'En retard', retourne:'Retourné' };
+    // Fallback pour les anciens prêts enregistrés avant l'ajout de l'instantané des noms
+    const outilNom = p.outilNom || (outils.find(o => o.id === p.outilId) || {}).nom || '—';
+    const mecNomTrouve = mecNomComplet(mecaniciens.find(m => m.id === p.mecanicienId));
+    const mecNom = p.mecanicienNom || mecNomTrouve || '—';
+    const mecMatricule = p.mecanicienMatricule || (mecaniciens.find(m => m.id === p.mecanicienId) || {}).matricule || '—';
+    const garageNom = p.garageNom || (garages.find(g => g.id === p.garageId) || {}).nom || '—';
+    const estEnCours = p.statut !== 'retourne';
+    return `
+    <tr class="row-${statutEtat} ${estEnCours ? 'row-clickable' : ''}" ${estEnCours ? `onclick="goToRetour('${p.id}')" title="Cliquer pour enregistrer le retour"` : ''}>
+      <td>${escapeHtml(outilNom)}</td>
+      <td>${escapeHtml(mecMatricule)}</td>
+      <td>${escapeHtml(mecNom)}</td>
+      <td>${escapeHtml(garageNom)}</td>
+      <td>${escapeHtml(p.shiftLabel || '—')}</td>
+      <td>${debut ? formatDateHeure(debut) : '—'}</td>
+      <td>${prevue ? formatHeure(prevue) : '—'}</td>
+      <td>${reelle ? formatDateHeure(reelle) : '—'}</td>
+      <td>${p.etatRetour ? (etatLabels[p.etatRetour] || p.etatRetour) : '—'}</td>
+      <td><span class="badge-statut ${statutEtat}">${statutLabels[statutEtat]}</span></td>
+    </tr>
+  `; }).join('');
+}
+
+function exportHistoriquePDF(){
+  if(!window.jspdf){
+    showToast('Bibliothèque PDF non chargée — vérifie ta connexion internet.', 'error');
+    return;
+  }
+  const filtered = getFilteredHistorique();
+  if(filtered.length === 0){
+    showToast('Aucune ligne à exporter avec ces filtres.', 'error');
+    return;
+  }
+
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation: 'landscape', unit: 'mm', format: 'a4' });
+
+  doc.setFontSize(14);
+  doc.text('Prêt Outillage — Historique des prêts', 14, 14);
+  doc.setFontSize(9);
+  doc.setTextColor(120);
+  doc.text(`Exporté le ${formatDateHeure(new Date())} — ${filtered.length} prêt(s)`, 14, 20);
+
+  const etatLabels = { bon_etat: 'Bon état', endommage: 'Endommagé' };
+  const statutLabels = { emprunte:'Emprunté', bientot_retard:'Retour proche', en_retard:'En retard', retourne:'Retourné' };
+
+  const rows = filtered.map(p => {
+    const debut = p.dateDebut && p.dateDebut.toDate ? p.dateDebut.toDate() : (p.dateDebut ? new Date(p.dateDebut) : null);
+    const prevue = p.dateRetourPrevue && p.dateRetourPrevue.toDate ? p.dateRetourPrevue.toDate() : (p.dateRetourPrevue ? new Date(p.dateRetourPrevue) : null);
+    const reelle = p.dateRetourReelle && p.dateRetourReelle.toDate ? p.dateRetourReelle.toDate() : (p.dateRetourReelle ? new Date(p.dateRetourReelle) : null);
+    const statutEtat = p.statut !== 'retourne' ? computePretEtat(p) : 'retourne';
+    const outilNom = p.outilNom || (outils.find(o => o.id === p.outilId) || {}).nom || '—';
+    const mecNomTrouve = mecNomComplet(mecaniciens.find(m => m.id === p.mecanicienId));
+    const mecNom = p.mecanicienNom || mecNomTrouve || '—';
+    const mecMatricule = p.mecanicienMatricule || (mecaniciens.find(m => m.id === p.mecanicienId) || {}).matricule || '—';
+    const garageNom = p.garageNom || (garages.find(g => g.id === p.garageId) || {}).nom || '—';
+    return [
+      outilNom, mecMatricule, mecNom, garageNom, p.shiftLabel || '—',
+      debut ? formatDateHeure(debut) : '—',
+      prevue ? formatHeure(prevue) : '—',
+      reelle ? formatDateHeure(reelle) : '—',
+      p.etatRetour ? (etatLabels[p.etatRetour] || p.etatRetour) : '—',
+      statutLabels[statutEtat] || statutEtat
+    ];
+  });
+
+  doc.autoTable({
+    startY: 26,
+    head: [['Outil','Matricule','Agent','Garage','Shift','Prêté le','Retour prévu','Retour réel','État','Statut']],
+    body: rows,
+    styles: { fontSize: 8, cellPadding: 2 },
+    headStyles: { fillColor: [37,99,235] },
+    margin: { left: 10, right: 10 }
+  });
+
+  doc.save(`historique-pret-outillage-${new Date().toISOString().slice(0,10)}.pdf`);
+}
+
+// ---------- Statistiques admin ----------
+function isPretEnRetard(p){
+  const prevue = p.dateRetourPrevue && p.dateRetourPrevue.toDate ? p.dateRetourPrevue.toDate() : (p.dateRetourPrevue ? new Date(p.dateRetourPrevue) : null);
+  if(!prevue) return false;
+  if(p.statut === 'retourne'){
+    const reelle = p.dateRetourReelle && p.dateRetourReelle.toDate ? p.dateRetourReelle.toDate() : (p.dateRetourReelle ? new Date(p.dateRetourReelle) : null);
+    return reelle ? reelle > prevue : false;
+  }
+  return computePretEtat(p) === 'en_retard';
+}
+
+function renderBarList(containerId, emptyId, items, maxItems=5){
+  const container = document.getElementById(containerId);
+  const empty = emptyId ? document.getElementById(emptyId) : null;
+  if(!container) return;
+  const top = items.slice(0, maxItems);
+  if(top.length === 0){
+    container.innerHTML = '';
+    if(empty) empty.style.display = 'block';
+    return;
+  }
+  if(empty) empty.style.display = 'none';
+  const max = Math.max(...top.map(i => i.value), 1);
+  container.innerHTML = top.map(i => `
+    <div class="bar-row ${i.onClick ? 'row-clickable' : ''}" ${i.onClick ? `onclick="${i.onClick}"` : ''}>
+      <div class="bar-row-top"><span class="brt-name">${escapeHtml(i.label)}</span><span class="brt-value">${i.display !== undefined ? i.display : i.value}</span></div>
+      <div class="bar-track"><div class="bar-fill ${i.danger ? 'danger' : ''}" style="width:${Math.round((i.value/max)*100)}%;"></div></div>
+    </div>
+  `).join('');
+}
+
+function renderStats(){
+  if(!document.getElementById('statTopOutils')) return;
+
+  // Durée moyenne d'emprunt (sur les prêts retournés)
+  const dureesMinutes = [];
+  allPrets.forEach(p => {
+    if(p.statut !== 'retourne') return;
+    const debut = p.dateDebut && p.dateDebut.toDate ? p.dateDebut.toDate() : (p.dateDebut ? new Date(p.dateDebut) : null);
+    const reelle = p.dateRetourReelle && p.dateRetourReelle.toDate ? p.dateRetourReelle.toDate() : (p.dateRetourReelle ? new Date(p.dateRetourReelle) : null);
+    if(debut && reelle) dureesMinutes.push((reelle - debut) / 60000);
+  });
+  const dureeEl = document.getElementById('statDureeMoyenne');
+  if(dureesMinutes.length === 0){
+    dureeEl.textContent = '—';
+  } else {
+    const avgMin = dureesMinutes.reduce((a,b)=>a+b,0) / dureesMinutes.length;
+    const h = Math.floor(avgMin / 60);
+    const m = Math.round(avgMin % 60);
+    dureeEl.textContent = h > 0 ? `${h}h ${m}min` : `${m}min`;
+  }
+
+  // Taux de retard global
+  const totalPrets = allPrets.length;
+  const totalRetards = allPrets.filter(isPretEnRetard).length;
+  document.getElementById('statTauxRetardGlobal').textContent =
+    totalPrets > 0 ? Math.round((totalRetards/totalPrets)*100) + '%' : '—';
+
+  // Outils les plus empruntés
+  const countByOutil = {};
+  allPrets.forEach(p => {
+    const key = p.outilId || p.outilNom;
+    if(!key) return;
+    if(!countByOutil[key]){
+      countByOutil[key] = {
+        label: p.outilNom || 'Outil supprimé', value: 0,
+        onClick: p.outilId && outils.find(o => o.id === p.outilId) ? `goToOutilFiche('${p.outilId}')` : null
+      };
+    }
+    countByOutil[key].value++;
+  });
+  renderBarList('statTopOutils', 'statTopOutilsEmpty', Object.values(countByOutil).sort((a,b)=>b.value-a.value));
+
+  // Agents avec le plus de retards
+  const retardsByMec = {};
+  allPrets.filter(isPretEnRetard).forEach(p => {
+    const key = p.mecanicienId || p.mecanicienNom;
+    if(!key) return;
+    if(!retardsByMec[key]){
+      retardsByMec[key] = {
+        label: p.mecanicienNom || 'Agent supprimé', value: 0, danger: true,
+        onClick: p.mecanicienId ? `goToHistoriqueAgent('${p.mecanicienId}')` : null
+      };
+    }
+    retardsByMec[key].value++;
+  });
+  renderBarList('statTopRetards', 'statTopRetardsEmpty', Object.values(retardsByMec).sort((a,b)=>b.value-a.value));
+
+  // Taux de retard par garage
+  const garageStats = garages.map(g => {
+    const pretsGarage = allPrets.filter(p => p.garageId === g.id);
+    const retardsGarage = pretsGarage.filter(isPretEnRetard).length;
+    const taux = pretsGarage.length > 0 ? Math.round((retardsGarage/pretsGarage.length)*100) : 0;
+    return { label: g.nom, value: taux, display: `${taux}% (${retardsGarage}/${pretsGarage.length})`, danger: taux >= 30 };
+  });
+  renderBarList('statTauxGarage', 'statTauxGarageEmpty', garageStats.sort((a,b)=>b.value-a.value), 10);
+
+  // Taux de retard par équipe (via l'équipe de l'agent emprunteur)
+  const equipesConnues = [...new Set(mecaniciens.map(m => m.equipe).filter(Boolean))].sort();
+  const equipeStats = equipesConnues.map(eq => {
+    const pretsEquipe = allPrets.filter(p => {
+      const mec = mecaniciens.find(m => m.id === p.mecanicienId);
+      return mec && mec.equipe === eq;
+    });
+    const retardsEquipe = pretsEquipe.filter(isPretEnRetard).length;
+    const taux = pretsEquipe.length > 0 ? Math.round((retardsEquipe/pretsEquipe.length)*100) : 0;
+    return { label: eq, value: taux, display: `${taux}% (${retardsEquipe}/${pretsEquipe.length})`, danger: taux >= 30, nbPrets: pretsEquipe.length };
+  }).filter(s => s.nbPrets > 0);
+  renderBarList('statTauxEquipe', 'statTauxEquipeEmpty', equipeStats.sort((a,b)=>b.value-a.value), 10);
+
+  // Taux de retard par shift
+  const shiftStats = SHIFTS.map(s => {
+    const pretsShift = allPrets.filter(p => p.shiftId === s.id);
+    const retardsShift = pretsShift.filter(isPretEnRetard).length;
+    const taux = pretsShift.length > 0 ? Math.round((retardsShift/pretsShift.length)*100) : 0;
+    return { label: s.label, value: taux, display: `${taux}% (${retardsShift}/${pretsShift.length})`, danger: taux >= 30 };
+  });
+  renderBarList('statTauxShift', null, shiftStats, 3);
+}
+
+// ---------- Scanner code-barres / QR ----------
+let html5QrScanner = null;
+let scannerCallback = null;
+
+function openScannerModal(onScanSuccess){
+  scannerCallback = onScanSuccess;
+  document.getElementById('scannerError').textContent = '';
+  openModal('scannerModal');
+
+  if(typeof Html5Qrcode === 'undefined'){
+    document.getElementById('scannerError').textContent = 'Bibliothèque de scan non chargée — vérifie ta connexion internet.';
+    return;
+  }
+
+  html5QrScanner = new Html5Qrcode('scannerReader');
+  html5QrScanner.start(
+    { facingMode: 'environment' },
+    { fps: 10, qrbox: 220 },
+    (decodedText) => {
+      const cb = scannerCallback;
+      closeScannerModal();
+      if(cb) cb(decodedText);
+    },
+    () => { /* erreurs de frame ignorées, normal en continu */ }
+  ).catch(err => {
+    console.error(err);
+    document.getElementById('scannerError').textContent = "Impossible d'accéder à la caméra (autorisation refusée ou indisponible).";
+  });
+}
+
+function closeScannerModal(){
+  closeModal('scannerModal');
+  if(html5QrScanner){
+    html5QrScanner.stop().then(() => html5QrScanner.clear()).catch(()=>{});
+    html5QrScanner = null;
+  }
+}
+
+function scanForPret(){
+  openScannerModal(function(code){
+    const outil = outils.find(o => o.codeBarre && o.codeBarre === code);
+    if(!outil){
+      showToast('Aucun outil ne correspond à ce code.', 'error');
+      return;
+    }
+    const dispoInfo = getOutilDisponibilite(outil);
+    if(dispoInfo.dispo <= 0){
+      showToast(`"${outil.nom}" n'est pas disponible actuellement (${dispoInfo.label}).`, 'error');
+      return;
+    }
+    document.getElementById('pretGarage').value = outil.garageId;
+    onPretGarageChange();
+    document.getElementById('pretOutil').value = outil.id;
+    updatePretOutilPreview();
+    showToast(`Outil "${outil.nom}" sélectionné`, 'success');
+  });
+}
+
+// ---------- Import agents depuis Servantes Outillage ----------
+const SERVANTES_CONFIG = {
+  apiKey: "AIzaSyCNW31tNFkx5qVLJIZL3mKcVGHLEw3H6WQ",
+  authDomain: "servantes-outillage.firebaseapp.com",
+  projectId: "servantes-outillage",
+  storageBucket: "servantes-outillage.firebasestorage.app",
+  messagingSenderId: "1072117756396",
+  appId: "1:1072117756396:web:6d05cb9862848503dd10c9"
+};
+let importPreviewRows = [];
+
+function pickField(obj, candidates){
+  for(const key of candidates){
+    if(obj[key] !== undefined && obj[key] !== null && obj[key] !== ''){
+      // Certains champs peuvent être des objets {nom: '...'} plutôt que du texte brut
+      if(typeof obj[key] === 'object' && obj[key].nom) return obj[key].nom;
+      return String(obj[key]);
+    }
+  }
+  return '';
+}
+
+async function openImportAgentsModal(){
+  openModal('importAgentsModal');
+  const body = document.getElementById('importAgentsBody');
+  const errEl = document.getElementById('importAgentsError');
+  const confirmBtn = document.getElementById('importAgentsConfirmBtn');
+  errEl.textContent = '';
+  confirmBtn.style.display = 'none';
+  body.innerHTML = '<p class="empty-state">Chargement des agents...</p>';
+
+  try{
+    let servantesApp = firebase.apps.find(a => a.name === 'servantes');
+    if(!servantesApp){
+      servantesApp = firebase.initializeApp(SERVANTES_CONFIG, 'servantes');
+    }
+    const servantesDb = servantesApp.firestore();
+    const snap = await servantesDb.collection('agents').get();
+
+    if(snap.empty){
+      body.innerHTML = '<p class="empty-state">Aucun agent trouvé dans Servantes Outillage.</p>';
+      return;
+    }
+
+    const existingByMatricule = new Map(mecaniciens.map(m => [m.matricule, m]));
+
+    importPreviewRows = snap.docs.map(d => {
+      const data = d.data();
+      const prenom = pickField(data, ['prenom', 'prénom', 'firstName']);
+      let nom = pickField(data, ['nom', 'nomComplet', 'name', 'lastName']);
+      // Si le champ nom source contient déjà le prénom+nom combiné et qu'on a aussi un prénom
+      // séparé, on retire ce prénom en double du champ nom pour éviter la répétition à l'affichage.
+      if(prenom && nom.toLowerCase().startsWith(prenom.toLowerCase() + ' ')){
+        nom = nom.slice(prenom.length).trim();
+      }
+      const nomAffiche = ((prenom ? prenom + ' ' : '') + nom).trim();
+      const matricule = pickField(data, ['matricule']);
+      const garageNomBrut = pickField(data, ['garage', 'garageNom', 'siteGarage']);
+      const equipe = pickField(data, ['equipe', 'equipeNom', 'team', 'shift']);
+      const garageMatch = garages.find(g => g.nom.trim().toLowerCase() === garageNomBrut.trim().toLowerCase());
+      const existant = matricule ? existingByMatricule.get(matricule) : null;
+      // Un agent déjà présent mais sans prénom enregistré, alors que la source en a un,
+      // peut être mis à jour (complété) plutôt qu'ignoré.
+      const peutCompleterPrenom = !!(existant && !existant.prenom && prenom);
+      const dejaPresent = !!existant && !peutCompleterPrenom;
+      return {
+        sourceId: d.id, prenom, nom, nomAffiche, matricule, garageNomBrut, equipe,
+        garageId: garageMatch ? garageMatch.id : null,
+        dejaPresent, peutCompleterPrenom,
+        existantId: existant ? existant.id : null,
+        selected: (!dejaPresent && !!garageMatch && !!nom && !!matricule) || peutCompleterPrenom
+      };
+    }).filter(r => r.nom || r.matricule);
+
+
+    renderImportPreview();
+    confirmBtn.style.display = 'inline-block';
+  }catch(e){
+    console.error(e);
+    errEl.textContent = "Erreur de connexion à Servantes Outillage — vérifie la config ou ta connexion internet.";
+    body.innerHTML = '';
+  }
+}
+
+function renderImportPreview(){
+  const body = document.getElementById('importAgentsBody');
+  const nbSelectionnables = importPreviewRows.filter(r => r.selected).length;
+  const nbSansGarage = importPreviewRows.filter(r => !r.garageId && !r.dejaPresent && !r.peutCompleterPrenom).length;
+  const nbDejaPresents = importPreviewRows.filter(r => r.dejaPresent).length;
+  const nbACompleter = importPreviewRows.filter(r => r.peutCompleterPrenom).length;
+
+  let html = `<p style="font-size:13px; color:var(--text-dim); margin-bottom:12px;">
+    ${importPreviewRows.length} agent(s) trouvé(s) — ${nbSelectionnables} sélectionné(s) pour import
+    ${nbACompleter > 0 ? `, dont ${nbACompleter} prénom(s) à compléter` : ''}
+    ${nbDejaPresents > 0 ? `, ${nbDejaPresents} déjà présent(s) (ignoré)` : ''}
+    ${nbSansGarage > 0 ? `, ${nbSansGarage} sans garage correspondant` : ''}.
+  </p>`;
+  html += `<div style="max-height:320px; overflow-y:auto;"><table><thead><tr>
+    <th></th><th>Nom</th><th>Matricule</th><th>Garage (source)</th><th>Équipe</th><th>Statut</th>
+  </tr></thead><tbody>`;
+
+  importPreviewRows.forEach((r, i) => {
+    const statut = r.peutCompleterPrenom
+      ? '<span class="badge-statut bientot_retard">Prénom à compléter</span>'
+      : r.dejaPresent
+        ? '<span class="badge-statut hors_service">Déjà présent</span>'
+        : r.garageId
+          ? '<span class="badge-statut disponible">Prêt</span>'
+          : '<span class="badge-statut en_retard">Garage introuvable</span>';
+    const disabled = (r.dejaPresent && !r.peutCompleterPrenom) || (!r.garageId && !r.peutCompleterPrenom) ? 'disabled' : '';
+    html += `<tr>
+      <td><input type="checkbox" ${r.selected ? 'checked' : ''} ${disabled} onchange="importPreviewRows[${i}].selected = this.checked"></td>
+      <td>${escapeHtml(r.nomAffiche || '—')}</td>
+      <td>${escapeHtml(r.matricule || '—')}</td>
+      <td>${escapeHtml(r.garageNomBrut || '—')}</td>
+      <td>${escapeHtml(r.equipe || '—')}</td>
+      <td>${statut}</td>
+    </tr>`;
+  });
+  html += '</tbody></table></div>';
+
+  if(nbSansGarage > 0){
+    html += `<p class="hint" style="text-align:left; margin-top:10px;">
+      Les agents "Garage introuvable" ont un nom de garage côté Servantes Outillage qui ne correspond à aucun garage créé ici.
+      Vérifie l'orthographe exacte dans Garages, ou crée le garage manquant puis relance l'import.
+    </p>`;
+  }
+
+  body.innerHTML = html;
+}
+
+async function confirmImportAgents(){
+  const aCreer = importPreviewRows.filter(r => r.selected && r.garageId && !r.dejaPresent && !r.peutCompleterPrenom);
+  const aCompleter = importPreviewRows.filter(r => r.selected && r.peutCompleterPrenom);
+  if(aCreer.length === 0 && aCompleter.length === 0){
+    showToast('Aucun agent sélectionné à importer.', 'error');
+    return;
+  }
+  const btn = document.getElementById('importAgentsConfirmBtn');
+  btn.disabled = true;
+  btn.textContent = 'Import en cours...';
+  try{
+    const batch = db.batch();
+    aCreer.forEach(r => {
+      const ref = db.collection('mecaniciens').doc();
+      batch.set(ref, {
+        prenom: r.prenom, nom: r.nom, matricule: r.matricule, garageId: r.garageId, equipe: r.equipe,
+        importeDe: 'servantes-outillage',
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+    });
+    aCompleter.forEach(r => {
+      const ref = db.collection('mecaniciens').doc(r.existantId);
+      batch.update(ref, { prenom: r.prenom });
+    });
+    await batch.commit();
+    const messages = [];
+    if(aCreer.length > 0) messages.push(`${aCreer.length} ajouté(s)`);
+    if(aCompleter.length > 0) messages.push(`${aCompleter.length} prénom(s) complété(s)`);
+    showToast(messages.join(' — '), 'success');
+    closeModal('importAgentsModal');
+    loadMecaniciens();
+  }catch(e){
+    console.error(e);
+    document.getElementById('importAgentsError').textContent = "Erreur lors de l'import.";
+  }finally{
+    btn.disabled = false;
+    btn.textContent = 'Importer';
+  }
+}
+
+// ---------- Utilisateurs ----------
+let users = [];
+let editingUserId = null;
+
+async function loadUsers(){
+  try{
+    const snap = await db.collection('users').orderBy('nom').get();
+    users = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderUsers();
+  }catch(e){ console.error(e); showToast('Erreur de chargement des utilisateurs', 'error'); }
+}
+
+function renderUsers(){
+  const tbody = document.getElementById('usersTableBody');
+  const empty = document.getElementById('usersEmpty');
+  if(!tbody) return;
+  if(users.length === 0){
+    tbody.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+  tbody.innerHTML = users.map(u => `
+    <tr>
+      <td>${escapeHtml(u.nom)}${u.id === currentUser.id ? ' <span style="color:var(--text-dim);font-size:12px;">(vous)</span>' : ''}${u.mecanicienId ? ' <span style="color:var(--accent);font-size:12px;">🔗 lié</span>' : ''}</td>
+      <td>${escapeHtml(u.matricule)}</td>
+      <td><span class="badge-role ${u.role}">${u.role === 'admin' ? 'Admin' : 'Magasinier'}</span></td>
+      <td class="row-actions" style="justify-content:flex-end;">
+        <button class="btn-secondary" onclick="openUserModal('${u.id}')">Modifier</button>
+        <button class="btn-danger" onclick="deleteUser('${u.id}')">Supprimer</button>
+      </td>
+    </tr>
+  `).join('');
+}
+
+function openUserModal(id){
+  editingUserId = id || null;
+  document.getElementById('userModalError').textContent = '';
+  document.getElementById('userPassword').value = '';
+  const hint = document.getElementById('userPasswordHint');
+  const passwordSection = document.getElementById('userPasswordSection');
+  const matriculeField = document.getElementById('userMatricule');
+
+  const linkSel = document.getElementById('userLinkMecanicien');
+  linkSel.innerHTML = '<option value="">— Saisie manuelle —</option>' +
+    mecaniciens.map(m => `<option value="${m.id}">${escapeHtml(mecNomComplet(m))} (${escapeHtml(m.matricule)})</option>`).join('');
+  linkSel.value = '';
+
+  if(id){
+    const u = users.find(x => x.id === id);
+    document.getElementById('userModalTitle').textContent = 'Modifier l\'utilisateur';
+    document.getElementById('userNom').value = u.nom;
+    document.getElementById('userMatricule').value = u.matricule;
+    document.getElementById('userRole').value = u.role;
+    if(u.mecanicienId) linkSel.value = u.mecanicienId;
+    matriculeField.disabled = true;
+    passwordSection.style.display = 'none';
+    hint.style.display = 'block';
+  }else{
+    document.getElementById('userModalTitle').textContent = 'Ajouter un utilisateur';
+    document.getElementById('userNom').value = '';
+    document.getElementById('userMatricule').value = '';
+    document.getElementById('userRole').value = 'magasinier';
+    matriculeField.disabled = false;
+    passwordSection.style.display = 'block';
+    hint.style.display = 'none';
+  }
+  openModal('userModal');
+}
+
+function onUserLinkMecanicienChange(){
+  const mecId = document.getElementById('userLinkMecanicien').value;
+  if(!mecId) return;
+  const m = mecaniciens.find(x => x.id === mecId);
+  if(!m) return;
+  document.getElementById('userNom').value = mecNomComplet(m);
+  document.getElementById('userMatricule').value = m.matricule;
+}
+
+async function saveUser(){
+  const nom = toSentenceCase(sanitizeInput(document.getElementById('userNom').value));
+  const matricule = sanitizeInput(document.getElementById('userMatricule').value);
+  const role = document.getElementById('userRole').value;
+  const password = document.getElementById('userPassword').value;
+  const mecanicienId = document.getElementById('userLinkMecanicien').value || null;
+  const errEl = document.getElementById('userModalError');
+
+  if(!nom || !matricule){ errEl.textContent = 'Nom et matricule requis.'; return; }
+  if(!isValidMatricule(matricule)){ errEl.textContent = 'Le matricule doit contenir exactement 5 chiffres.'; return; }
+
+  try{
+    if(editingUserId){
+      // Modification : uniquement les champs de profil (nom, rôle, lien agent).
+      // Le matricule (email) et le mot de passe ne sont plus modifiables ici — sécurité Firebase Auth.
+      await db.collection('users').doc(editingUserId).update({ nom, role, mecanicienId });
+      showToast('Utilisateur modifié', 'success');
+      if(editingUserId === currentUser.id){
+        currentUser = { ...currentUser, nom, role };
+        enterApp();
+      }
+    }else{
+      if(!password){ errEl.textContent = 'Le mot de passe est requis pour un nouvel utilisateur.'; return; }
+      if(password.length < 6){ errEl.textContent = 'Le mot de passe doit faire au moins 6 caractères (obligatoire pour Firebase).'; return; }
+
+      // Matricule unique (vérification côté Firestore, en plus de l'unicité déjà garantie par Firebase Auth sur l'email)
+      const conflict = users.find(u => u.matricule === matricule);
+      if(conflict){ errEl.textContent = 'Ce matricule est déjà utilisé par un autre utilisateur.'; return; }
+
+      // Création via une instance Firebase secondaire pour ne pas déconnecter l'admin
+      // (createUserWithEmailAndPassword connecte automatiquement le nouvel utilisateur sur l'instance utilisée).
+      let secondaryApp = firebase.apps.find(a => a.name === 'secondaryAuth');
+      if(!secondaryApp){
+        secondaryApp = firebase.initializeApp(firebase.app().options, 'secondaryAuth');
+      }
+      const secondaryAuth = secondaryApp.auth();
+      const cred = await secondaryAuth.createUserWithEmailAndPassword(matriculeToEmail(matricule), password);
+      const newUid = cred.user.uid;
+      await secondaryAuth.signOut();
+
+      await db.collection('users').doc(newUid).set({
+        nom, matricule, role, mecanicienId,
+        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      });
+      showToast('Utilisateur ajouté', 'success');
+    }
+    closeModal('userModal');
+    loadUsers();
+  }catch(e){
+    console.error(e);
+    if(e.code === 'auth/email-already-in-use'){
+      errEl.textContent = 'Ce matricule est déjà utilisé par un autre utilisateur.';
+    }else if(e.code === 'auth/weak-password'){
+      errEl.textContent = 'Le mot de passe doit faire au moins 6 caractères (obligatoire pour Firebase).';
+    }else{
+      errEl.textContent = "Erreur lors de l'enregistrement.";
+    }
+  }
+}
+
+async function deleteUser(id){
+  if(id === currentUser.id){
+    showToast('Impossible de supprimer votre propre compte', 'error');
+    return;
+  }
+  const target = users.find(u => u.id === id);
+  if(target && target.role === 'admin'){
+    const nbAdmins = users.filter(u => u.role === 'admin').length;
+    if(nbAdmins <= 1){
+      showToast('Impossible de supprimer le dernier compte admin', 'error');
+      return;
+    }
+  }
+  if(!confirm('Supprimer cet utilisateur ?\n\nNote : son compte de connexion restera techniquement actif (limite de sécurité Firebase) mais ne pourra plus accéder à l\'application sans fiche associée.')) return;
+  try{
+    await db.collection('users').doc(id).delete();
+    showToast('Utilisateur supprimé', 'success');
+    loadUsers();
+  }catch(e){ console.error(e); showToast('Erreur lors de la suppression', 'error'); }
+}
+
+// ---------- Sauvegarde globale ----------
+async function exportBackupJSON(){
+  showToast('Préparation de la sauvegarde...', 'info');
+  try{
+    const [garagesSnap, mecaniciensSnap, outilsSnap, pretsSnap, usersSnap] = await Promise.all([
+      db.collection('garages').get(),
+      db.collection('mecaniciens').get(),
+      db.collection('outils').get(),
+      db.collection('prets').get(),
+      db.collection('users').get()
+    ]);
+
+    const toArray = (snap) => snap.docs.map(d => {
+      const data = { id: d.id, ...d.data() };
+      // Conversion des Timestamps Firestore en texte lisible
+      Object.keys(data).forEach(k => {
+        if(data[k] && typeof data[k].toDate === 'function') data[k] = data[k].toDate().toISOString();
+      });
+      return data;
+    });
+
+    const backup = {
+      exporteLe: new Date().toISOString(),
+      application: 'Prêt Outillage',
+      garages: toArray(garagesSnap),
+      agents: toArray(mecaniciensSnap),
+      outils: toArray(outilsSnap),
+      prets: toArray(pretsSnap),
+      // Les mots de passe (salt/passwordHash) sont volontairement exclus de la sauvegarde
+      utilisateurs: toArray(usersSnap).map(u => ({ id: u.id, nom: u.nom, matricule: u.matricule, role: u.role, mecanicienId: u.mecanicienId || null }))
+    };
+
+    const blob = new Blob([JSON.stringify(backup, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `sauvegarde-pret-outillage-${new Date().toISOString().slice(0,10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+    showToast('Sauvegarde exportée', 'success');
+  }catch(e){
+    console.error(e);
+    showToast('Erreur lors de la sauvegarde', 'error');
+  }
+}
+
+// ---------- Mon profil ----------
+function renderMonProfil(){
+  document.getElementById('monProfilInfo').textContent =
+    `${currentUser.nom} — Matricule ${currentUser.matricule} — ${currentUser.role === 'admin' ? 'Admin' : 'Magasinier'}`;
+  document.getElementById('mpAncienPassword').value = '';
+  document.getElementById('mpNouveauPassword').value = '';
+  document.getElementById('mpConfirmPassword').value = '';
+  document.getElementById('monProfilError').textContent = '';
+  document.getElementById('monProfilSuccess').style.display = 'none';
+}
+
+async function changerMonMotDePasse(){
+  const ancien = document.getElementById('mpAncienPassword').value;
+  const nouveau = document.getElementById('mpNouveauPassword').value;
+  const confirmation = document.getElementById('mpConfirmPassword').value;
+  const errEl = document.getElementById('monProfilError');
+  const successEl = document.getElementById('monProfilSuccess');
+  const btn = document.getElementById('monProfilBtn');
+  errEl.textContent = '';
+  successEl.style.display = 'none';
+
+  if(!ancien || !nouveau || !confirmation){ errEl.textContent = 'Tous les champs sont obligatoires.'; return; }
+  if(nouveau.length < 4){ errEl.textContent = 'Le nouveau mot de passe doit faire au moins 4 caractères.'; return; }
+  if(nouveau !== confirmation){ errEl.textContent = 'La confirmation ne correspond pas au nouveau mot de passe.'; return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Vérification...';
+  try{
+    const email = matriculeToEmail(currentUser.matricule);
+    const credential = firebase.auth.EmailAuthProvider.credential(email, ancien);
+    await auth.currentUser.reauthenticateWithCredential(credential);
+    await auth.currentUser.updatePassword(nouveau);
+    successEl.textContent = 'Mot de passe changé avec succès.';
+    successEl.style.display = 'block';
+    document.getElementById('mpAncienPassword').value = '';
+    document.getElementById('mpNouveauPassword').value = '';
+    document.getElementById('mpConfirmPassword').value = '';
+  }catch(e){
+    console.error(e);
+    if(e.code === 'auth/wrong-password' || e.code === 'auth/invalid-credential'){
+      errEl.textContent = 'Mot de passe actuel incorrect.';
+    }else{
+      errEl.textContent = "Erreur lors du changement de mot de passe.";
+    }
+  }finally{
+    btn.disabled = false;
+    btn.textContent = 'Changer le mot de passe';
+  }
+}
+
+// ---------- Demandes (magasinier -> admin) ----------
+let demandeContext = null; // { type, id, nom }
+let demandes = [];
+
+function openDemandeModal(type, id, nom){
+  demandeContext = { type, id, nom };
+  const labels = { garage: 'Garage', mecanicien: 'Agent', outil: 'Outil' };
+  document.getElementById('demandeElementInfo').textContent = `${labels[type] || type} concerné : ${nom}`;
+  document.getElementById('demandeType').value = 'modification';
+  document.getElementById('demandeMessage').value = '';
+  document.getElementById('demandeModalError').textContent = '';
+  openModal('demandeModal');
+}
+
+async function submitDemande(){
+  const errEl = document.getElementById('demandeModalError');
+  const btn = document.getElementById('demandeSubmitBtn');
+  const message = sanitizeInput(document.getElementById('demandeMessage').value);
+  const demandeType = document.getElementById('demandeType').value;
+  if(!message){ errEl.textContent = 'Merci de décrire la demande.'; return; }
+  if(!demandeContext){ errEl.textContent = 'Erreur : élément non identifié.'; return; }
+
+  btn.disabled = true;
+  btn.textContent = 'Envoi...';
+  try{
+    await db.collection('demandes').add({
+      type: demandeContext.type,
+      elementId: demandeContext.id,
+      elementNom: demandeContext.nom,
+      demandeType, message,
+      demandeurId: currentUser.id,
+      demandeurNom: currentUser.nom,
+      statut: 'en_attente',
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    showToast('Demande envoyée à l\'administrateur', 'success');
+    closeModal('demandeModal');
+  }catch(e){
+    console.error(e);
+    errEl.textContent = "Erreur lors de l'envoi de la demande.";
+  }finally{
+    btn.disabled = false;
+    btn.textContent = 'Envoyer la demande';
+  }
+}
+
+async function loadDemandes(){
+  try{
+    const snap = await db.collection('demandes').orderBy('createdAt','desc').limit(200).get();
+    demandes = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderDemandes();
+    updateDemandeBadge();
+  }catch(e){ console.error(e); showToast('Erreur de chargement des demandes', 'error'); }
+}
+
+function updateDemandeBadge(){
+  const badge = document.getElementById('navDemandeBadge');
+  if(!badge) return;
+  const nbEnAttente = demandes.filter(d => d.statut === 'en_attente').length;
+  if(nbEnAttente > 0){ badge.textContent = nbEnAttente; badge.style.display = 'inline-block'; }
+  else{ badge.style.display = 'none'; }
+}
+
+function renderDemandes(){
+  const tbody = document.getElementById('demandesTableBody');
+  const empty = document.getElementById('demandesEmpty');
+  const statutFilter = document.getElementById('demandesFilterStatut').value;
+  const filtered = demandes.filter(d => !statutFilter || d.statut === statutFilter);
+
+  if(filtered.length === 0){
+    tbody.innerHTML = '';
+    empty.style.display = 'block';
+    return;
+  }
+  empty.style.display = 'none';
+
+  const typeLabels = { garage:'Garage', mecanicien:'Agent', outil:'Outil' };
+  const demandeTypeLabels = { modification:'Modification', suppression:'Suppression', autre:'Autre' };
+
+  tbody.innerHTML = filtered.map(d => {
+    const date = d.createdAt && d.createdAt.toDate ? formatDateHeure(d.createdAt.toDate()) : '—';
+    const statutBadge = d.statut === 'traitee'
+      ? '<span class="badge-statut disponible">Traitée</span>'
+      : '<span class="badge-statut bientot_retard">En attente</span>';
+    return `
+    <tr>
+      <td class="row-clickable" onclick="goToElementDemande('${d.type}','${d.elementId}')" title="Ouvrir la fiche">${escapeHtml(typeLabels[d.type] || d.type)} — ${escapeHtml(d.elementNom || '—')}</td>
+      <td>${escapeHtml(demandeTypeLabels[d.demandeType] || d.demandeType)}</td>
+      <td style="max-width:280px; white-space:normal;">${escapeHtml(d.message)}</td>
+      <td>${escapeHtml(d.demandeurNom || '—')}</td>
+      <td>${date}</td>
+      <td>${statutBadge}</td>
+      <td class="row-actions" style="justify-content:flex-end;">
+        ${d.statut !== 'traitee' ? `<button class="btn-secondary" onclick="marquerDemandeTraitee('${d.id}')">Marquer traitée</button>` : ''}
+        <button class="btn-danger" onclick="deleteDemande('${d.id}')">Supprimer</button>
+      </td>
+    </tr>
+  `; }).join('');
+}
+
+async function marquerDemandeTraitee(id){
+  try{
+    await db.collection('demandes').doc(id).update({ statut: 'traitee', traiteeAt: firebase.firestore.FieldValue.serverTimestamp() });
+    showToast('Demande marquée traitée', 'success');
+    loadDemandes();
+  }catch(e){ console.error(e); showToast('Erreur', 'error'); }
+}
+
+async function deleteDemande(id){
+  if(!confirm('Supprimer cette demande ?')) return;
+  try{
+    await db.collection('demandes').doc(id).delete();
+    loadDemandes();
+  }catch(e){ console.error(e); showToast('Erreur lors de la suppression', 'error'); }
+}
+
+// ---------- Init ----------
+// La restauration de session est gérée automatiquement par onAuthStateChanged ci-dessus.
+</script>
+</body>
+</html>
